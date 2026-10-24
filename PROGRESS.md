@@ -475,3 +475,30 @@ nothing new (`logs/spider-build.log`).
 - 4-suit Spider deals are limited to the ones the solver can crack within 300k nodes (about 15%).
 - The Spider difficulty player is weak (it rarely wins 2- or 4-suit games), so the Spider tiers rest on how
   far it gets rather than on wins. A stronger fair player would make the tiers more meaningful.
+
+## Open decisions (2026-10-25)
+
+Every milestone in PLAN.md is done. These are waiting on the owner, roughly in the recommended order.
+
+1. **Play-test Spider and Scorpion II.** So far they have only been checked by the debug autoplay and a few
+   taps. Look out for: tiers that feel wrong, tap-to-move sending cards somewhere unexpected, and whether
+   10 Spider columns are too cramped on a real phone. *Recommended first.*
+2. **A stronger Spider difficulty player?** Spider tiers rest on how far a weak fair player gets (progress),
+   not on wins. A stronger player that still can't see hidden cards (for example a short search over
+   rearrangements before each deal or reveal) would make the tiers match how hard a deal feels. About half
+   a day, plus regenerating the Spider packs. *Do this if the Spider tiers feel off in play.*
+3. **A better 4-suit Spider solver?** Only about 15% of 4-suit deals are solved within 300k nodes, so the
+   shipped deals lean towards ones the solver finds easier. Improving it is the hardest item here, with no
+   guaranteed payoff.
+4. **Small leftovers:**
+   - Re-check the StrictMode fix (M5) on the device.
+   - The win screen can show 0:00 after the debug autoplay (debug builds only).
+   - Undo still works through the win screen. Harmless; block it or leave it?
+5. **Before a public release:**
+   - Regenerate the packs with `--per-tier 2500` (100 now). Estimated from this run's timings, on 8 threads:
+     Klondike about 1 h, Spider 4 suits about 2.5 h, Scorpion II about 3.5 h, Spider 1 and 2 suits minutes.
+   - Size at 2,500 per tier, from the current KiB per 100 deals: Klondike about 1.7 MB, Spider 4 suits about
+     2.4 MB, Spider 2 suits about 1.2 MB, Spider 1 suit about 0.9 MB, Scorpion II about 0.2 MB. That is
+     **about 6.4 MB in total, over the plan's 5 MB target**. Options: accept it, ship fewer 4-suit/2-suit
+     Spider deals per tier, or shorten Spider solutions before storing them.
+   - Set up a GitHub remote and add the source-code link to the store text.
