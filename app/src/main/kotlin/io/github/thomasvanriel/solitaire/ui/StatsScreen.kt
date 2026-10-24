@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import io.github.thomasvanriel.solitaire.BuildConfig
 import io.github.thomasvanriel.solitaire.engine.difficulty.Tier
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.game.ModeStats
@@ -113,6 +114,8 @@ fun StatsScreen(
             )
             Spacer(Modifier.height(24.dp))
             OutlinedButton(onClick = { confirmReset = true }) { Text("Reset statistics") }
+            Spacer(Modifier.height(16.dp))
+            Text("Version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
         }
     }
 

@@ -6,15 +6,29 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import io.github.thomasvanriel.solitaire.engine.model.Card
 
 /**
  * Suit symbols drawn as shapes in a square box, so they look the same on every device and stay easy to
  * tell apart at small sizes: the spade has a pointed top, the club three round leaves.
- * Each suit is merged into one shape before drawing, so see-through suits (empty foundations) have no seams.
+ * Each suit is merged into one shape, so see-through suits (empty foundations) have no seams. The shapes
+ * are built once in a 1×1 box and scaled into place when drawn.
  */
 fun DrawScope.drawSuit(suit: Int, topLeft: Offset, side: Float, color: Color) {
-    fun p(x: Float, y: Float) = Offset(topLeft.x + x * side, topLeft.y + y * side)
+    translate(topLeft.x, topLeft.y) {
+        scale(side, side, pivot = Offset.Zero) {
+            drawPath(unitSuits[suit], color)
+        }
+    }
+}
+
+private val unitSuits: Array<Path> = Array(4) { buildSuit(it) }
+
+private fun buildSuit(suit: Int): Path {
+    val side = 1f
+    fun p(x: Float, y: Float) = Offset(x, y)
     fun Path.move(x: Float, y: Float) = p(x, y).let { moveTo(it.x, it.y) }
     fun Path.line(x: Float, y: Float) = p(x, y).let { lineTo(it.x, it.y) }
     fun Path.curve(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) {
@@ -72,5 +86,5 @@ fun DrawScope.drawSuit(suit: Int, topLeft: Offset, side: Float, color: Color) {
             union(*(leaves + middle + stem()).toTypedArray())
         }
     }
-    drawPath(shape, color)
+    return shape
 }
