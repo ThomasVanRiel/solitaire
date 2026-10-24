@@ -15,7 +15,7 @@ kotlin {
 }
 
 application {
-    mainClass = "io.github.thomasvanriel.winnable.dealgen.MainKt"
+    mainClass = "io.github.thomasvanriel.solitaire.dealgen.MainKt"
     applicationDefaultJvmArgs = listOf("-Xmx2g")
 }
 

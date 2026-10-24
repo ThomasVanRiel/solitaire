@@ -14,7 +14,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "winnable-patience"
+rootProject.name = "solitaire"
 
 include(":engine", ":dealgen")
 

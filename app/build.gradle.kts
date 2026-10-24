@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "io.github.thomasvanriel.winnable"
+    namespace = "io.github.thomasvanriel.solitaire"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.thomasvanriel.winnable"
+        applicationId = "io.github.thomasvanriel.solitaire"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

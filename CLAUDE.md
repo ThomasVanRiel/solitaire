@@ -1,6 +1,6 @@
 # Working rules for the coding agent
 
-You're building **Winnable Patience**, an open-source Android Klondike app where every deal is
+You're building **Solitaire**, an open-source Android Klondike app where every deal is
 proven winnable. The full spec and the milestones are in `PLAN.md`. Read it completely before starting.
 
 ## How to work

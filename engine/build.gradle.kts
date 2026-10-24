@@ -26,6 +26,12 @@ tasks.test {
         if (!project.hasProperty("bench")) excludeTags("benchmark")
     }
     maxHeapSize = "2g"
+    // The shipped deal packs, replayed by ShippedPacksTest.
+    val packsDir = rootProject.layout.projectDirectory.dir("app/src/main/assets/deals")
+    inputs.dir(packsDir).optional().withPropertyName("packs")
+    systemProperty("packs.dir", packsDir.asFile.absolutePath)
+    systemProperty("bench.seeds", providers.gradleProperty("benchSeeds").getOrElse("1000"))
+    systemProperty("bench.nodes", providers.gradleProperty("benchNodes").getOrElse("2000000"))
     testLogging {
         events("failed")
         showStandardStreams = project.hasProperty("bench")

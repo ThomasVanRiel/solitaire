@@ -7,7 +7,7 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Winnable">
+        android:theme="@style/Theme.Solitaire">
         <activity
             android:name=".MainActivity"
             android:exported="true">

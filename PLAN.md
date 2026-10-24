@@ -1,4 +1,4 @@
-# Winnable Patience: Project Plan
+# Solitaire: Project Plan
 
 An open-source Klondike patience (solitaire) app for Android where **every deal is winnable**.
 A deal can be brutally hard, but the app never gives you a deal that can't be won.
@@ -13,8 +13,8 @@ Read `CLAUDE.md` for the working rules.
 
 | Decision | Default | Notes |
 |---|---|---|
-| App name | **Winnable Patience** | Working title. |
-| Application ID | `io.github.thomasvanriel.winnable` | Owner's GitHub username, ThomasVanRiel. Changing it after release breaks updates. |
+| App name | **Solitaire** | Working title. |
+| Application ID | `io.github.thomasvanriel.solitaire` | Owner's GitHub username, ThomasVanRiel. Changing it after release breaks updates. |
 | License | **GPL-3.0-or-later** | Keeps forks open source, and F-Droid is happy with it. Use Apache-2.0 if you'd rather allow closed forks. |
 | Min SDK | 26 (Android 8.0) | Covers nearly all active devices. |
 | Target SDK | Whatever Google Play currently requires | The agent must check this when it starts, not guess. |
