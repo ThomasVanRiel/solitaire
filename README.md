@@ -1,5 +1,11 @@
 # Solitaire
 
+> [!WARNING]
+> **Disclaimer: this app is FULLY vibe coded, for personal use only.** All of the code was written by an AI
+> coding agent (Claude Code), directed by the owner but not written or reviewed line by line by a person.
+> It comes with no warranty and no support, and it is not intended for distribution or production use.
+> Use it at your own risk.
+
 An open-source Klondike patience (solitaire) game for Android where **every deal is proven winnable**.
 Deals can be very hard, but each one comes with a stored winning sequence that has been replayed through
 the game's own rules engine before it is dealt to you.
