@@ -48,9 +48,9 @@ class HeuristicPlayerTest {
         for (rs in RuleSet.ALL) {
             var total = 0
             for (seed in 0L until 20L) {
-                val w = DifficultyRater.wins(Deals.deal(seed), rs, seed, 10)
-                assertEquals(w, DifficultyRater.wins(Deals.deal(seed), rs, seed, 10))
-                assertTrue(w in 0..10)
+                val w = DifficultyRater.wins(Deals.deal(seed, rs), rs, seed, 10)
+                assertEquals(w, DifficultyRater.wins(Deals.deal(seed, rs), rs, seed, 10))
+                assertTrue(w in 0..DifficultyRater.maxRating(rs, 10))
                 total += w
             }
             assertTrue(total > 0, "$rs: the heuristic player should win some games")
@@ -60,9 +60,10 @@ class HeuristicPlayerTest {
     @Test
     fun tiers() {
         for (rs in RuleSet.ALL) {
+            val max = DifficultyRater.maxRating(rs, 30)
             assertEquals(Tier.EXPERT, DifficultyRater.tierFor(0, 30, rs))
-            assertEquals(Tier.EASY, DifficultyRater.tierFor(30, 30, rs))
-            val tiers = (0..30).map { DifficultyRater.tierFor(it, 30, rs) }
+            assertEquals(Tier.EASY, DifficultyRater.tierFor(max, 30, rs))
+            val tiers = (0..max).map { DifficultyRater.tierFor(it, 30, rs) }
             assertEquals(tiers.sortedByDescending { it.id }, tiers, "more wins never means a harder tier")
             assertEquals(Tier.entries.toSet(), tiers.toSet(), "every tier is reachable")
         }

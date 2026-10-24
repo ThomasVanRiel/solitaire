@@ -19,7 +19,7 @@ fun DrawScope.drawFeltSurprise(seed: Long, layout: BoardLayout) {
     if (((h ushr 40) % 25L) != 0L) return
     val side = layout.cardWidth * 0.32f
     val xFraction = ((h ushr 16) and 0xFFFF).toFloat() / 0xFFFF
-    val x = layout.slotX(0) + xFraction * (layout.slotX(6) + layout.cardWidth - layout.slotX(0) - side)
+    val x = layout.slotX(0) + xFraction * (layout.slotX(layout.columns - 1) + layout.cardWidth - layout.slotX(0) - side)
     val y = size.height - side * 1.8f
     if (y < layout.tableauTop + layout.cardHeight) return // no empty felt to hide in
 

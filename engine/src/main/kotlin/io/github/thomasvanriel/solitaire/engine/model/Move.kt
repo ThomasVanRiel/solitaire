@@ -1,10 +1,14 @@
 package io.github.thomasvanriel.solitaire.engine.model
 
 /**
- * A single move. Columns are 0-based (0..6). Suits use [Card]'s numbering.
+ * A single move. Columns are 0-based. Suits use [Card]'s numbering.
  *
- * Every move has a compact [code] that fits in 13 bits (two bytes in storage):
- * bits 0-2 type, bits 3-5 `a`, bits 6-8 `b`, bits 9-12 `c`.
+ * In Spider and Scorpion, [Draw] deals from the stock onto the columns, and [TableauToFoundation] takes a
+ * complete King-to-Ace run off a column. The waste and foundation-to-tableau moves are Klondike only.
+ *
+ * Every move has a compact [code] that fits in 17 bits:
+ * bits 0-2 type, `a` in bits 3-5 (low) and 13 (high), `b` in bits 6-8 and 14, `c` in bits 9-12 and 15-16.
+ * Klondike only ever needs the low bits, so its codes fit in 13 bits and match the original format.
  * The rules engine works directly on these codes, so the solver and the game share one code path.
  */
 sealed class Move {
@@ -54,16 +58,18 @@ sealed class Move {
         const val TYPE_T2T = 5
         const val TYPE_F2T = 6
 
-        const val CODE_BITS = 13
+        const val CODE_BITS = 17
         const val CODE_MASK = (1 shl CODE_BITS) - 1
 
+        /** [a] and [b] go up to 15 (columns, suits), [c] up to 63 (run length). */
         fun encode(type: Int, a: Int, b: Int, c: Int): Int =
-            type or (a shl 3) or (b shl 6) or (c shl 9)
+            type or ((a and 7) shl 3) or ((b and 7) shl 6) or ((c and 15) shl 9) or
+                ((a shr 3) shl 13) or ((b shr 3) shl 14) or ((c shr 4) shl 15)
 
         fun type(code: Int): Int = code and 7
-        fun a(code: Int): Int = (code shr 3) and 7
-        fun b(code: Int): Int = (code shr 6) and 7
-        fun c(code: Int): Int = (code shr 9) and 15
+        fun a(code: Int): Int = ((code shr 3) and 7) or (((code shr 13) and 1) shl 3)
+        fun b(code: Int): Int = ((code shr 6) and 7) or (((code shr 14) and 1) shl 3)
+        fun c(code: Int): Int = ((code shr 9) and 15) or (((code shr 15) and 3) shl 4)
 
         fun decode(code: Int): Move {
             require(code in 0..CODE_MASK) { "Bad move code $code" }
@@ -84,20 +90,25 @@ sealed class Move {
             return move
         }
 
-        /** Two bytes per move, big-endian. */
+        /** Three bytes per move, big-endian. */
         fun encodeAll(moves: List<Move>): ByteArray {
-            val out = ByteArray(moves.size * 2)
+            val out = ByteArray(moves.size * 3)
             moves.forEachIndexed { i, m ->
-                out[2 * i] = (m.code shr 8).toByte()
-                out[2 * i + 1] = m.code.toByte()
+                out[3 * i] = (m.code shr 16).toByte()
+                out[3 * i + 1] = (m.code shr 8).toByte()
+                out[3 * i + 2] = m.code.toByte()
             }
             return out
         }
 
-        fun decodeAll(bytes: ByteArray): List<Move> {
-            require(bytes.size % 2 == 0) { "Odd number of bytes in a move list" }
-            return List(bytes.size / 2) { i ->
-                decode(((bytes[2 * i].toInt() and 0xFF) shl 8) or (bytes[2 * i + 1].toInt() and 0xFF))
+        /** Reads [encodeAll]'s format, or with [bytesPerMove] = 2 the older two-byte Klondike format. */
+        fun decodeAll(bytes: ByteArray, bytesPerMove: Int = 3): List<Move> {
+            require(bytesPerMove in 2..3) { "Bad move size $bytesPerMove" }
+            require(bytes.size % bytesPerMove == 0) { "Truncated move list" }
+            return List(bytes.size / bytesPerMove) { i ->
+                var code = 0
+                for (k in 0 until bytesPerMove) code = (code shl 8) or (bytes[bytesPerMove * i + k].toInt() and 0xFF)
+                decode(code)
             }
         }
     }

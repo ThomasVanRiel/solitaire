@@ -18,11 +18,11 @@ class HeuristicPlayer(
     private val ruleSet: RuleSet,
     private val rng: Xoshiro256,
     private val maxMoves: Int = 1500,
-) {
+) : Player {
     private val buf = IntArray(Rules.MAX_MOVES)
 
     /** Plays one game from [start]; true if it wins (or reaches a position with nothing left to hide). */
-    fun play(start: GameState): Boolean {
+    override fun play(start: GameState): Boolean {
         val s = start.copy()
         var stockMovesInARow = 0
         repeat(maxMoves) {

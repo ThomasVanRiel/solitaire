@@ -29,8 +29,12 @@ class Solver(
     private val maxNodes: Long = 2_000_000,
     private val timeLimitMs: Long = 10_000,
     private val isCancelled: () -> Boolean = { false },
-) {
-    private var s = GameState()
+) : DealSolver {
+    init {
+        require(ruleSet.game == io.github.thomasvanriel.solitaire.engine.model.GameType.KLONDIKE) { "Not a Klondike rule set" }
+    }
+
+    private var s = GameState.forRules(ruleSet)
     private val path = IntArray(MAX_PATH)
     private val tokens = IntArray(MAX_PATH)
     private var pathLen = 0
@@ -57,7 +61,7 @@ class Solver(
      * can trap it in a huge subtree), and restarts fix most of those cases cheaply.
      * `Unsolvable` is only reported when an attempt exhausts the search space within its budget.
      */
-    fun solve(start: GameState): SolveResult {
+    override fun solve(start: GameState): SolveResult {
         if (isCancelled()) return SolveResult.Unknown(0)
         deadline = System.nanoTime() + timeLimitMs * 1_000_000
         totalNodes = 0

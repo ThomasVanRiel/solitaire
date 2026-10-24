@@ -4,29 +4,36 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import io.github.thomasvanriel.solitaire.engine.model.GameState
+import io.github.thomasvanriel.solitaire.engine.model.GameType
+import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.game.Source
 import io.github.thomasvanriel.solitaire.game.Target
 
 /**
- * Where everything goes on the board, in pixels.
- * Top row, left to right: four foundations, the waste (fanned to the left for draw-3), the stock on the far
- * right where the right thumb is. Below that the seven columns.
+ * Where everything goes on the board, in pixels. The stock is always at the far right, where the right
+ * thumb is, and the foundations at the left. The columns are below.
+ * - Klondike: four foundations, the waste (fanned to the left for draw-3), the stock. Seven columns.
+ * - Spider: completed runs fanned from the left, the remaining deals fanned left of the stock. Ten columns.
+ * - Scorpion II: one slot per suit for its completed run, the stock. Seven columns.
  * Column fans shrink so that a long column always fits.
  */
 class BoardLayout(
     val width: Float,
     val height: Float,
     private val state: GameState,
-    private val drawCount: Int,
+    private val ruleSet: RuleSet,
 ) {
+    val columns: Int = state.columns
+    private val game = ruleSet.game
+
     /**
-     * Card width: as wide as seven columns allow, but small enough that the top row plus about three
+     * Card width: as wide as the columns allow, but small enough that the top row plus about three
      * card heights of tableau fit (so landscape and tablets don't overflow). The board is centred.
      */
-    val cardWidth: Float = minOf(width / (7f + 8f * GAP_RATIO), height / (ASPECT * 4.2f))
+    val cardWidth: Float = minOf(width / (columns + (columns + 1) * GAP_RATIO), height / (ASPECT * 4.2f))
     val gap: Float = cardWidth * GAP_RATIO
     val cardHeight: Float = cardWidth * ASPECT
-    private val left: Float = (width - (7f * cardWidth + 8f * gap)) / 2f
+    private val left: Float = (width - (columns * cardWidth + (columns + 1) * gap)) / 2f
     val cardSize = Size(cardWidth, cardHeight)
     val corner: Float = cardWidth * 0.09f
 
@@ -35,9 +42,9 @@ class BoardLayout(
 
     fun slotX(slot: Int): Float = left + gap + slot * (cardWidth + gap)
 
-    val stockRect: Rect get() = Rect(Offset(slotX(6), topY), cardSize)
+    val stockRect: Rect get() = Rect(Offset(slotX(columns - 1), topY), cardSize)
 
-    /** Foundation slot for suit [suit] (C, D, H, S from left to right). */
+    /** Foundation slot for suit [suit] (C, D, H, S from left to right). Klondike and Scorpion. */
     fun foundationRect(suit: Int): Rect = Rect(Offset(slotX(suit), topY), cardSize)
 
     private val wasteFan: Float = cardWidth * 0.32f
@@ -47,14 +54,34 @@ class BoardLayout(
      * The top card is always next to the stock; older cards fan out to the left.
      */
     fun wastePositions(hideTop: Boolean = false): List<Pair<Int, Offset>> {
-        val visible = if (drawCount >= 3) 3 else 1
+        val visible = if (ruleSet.drawCount >= 3) 3 else 1
         val wasteSize = if (hideTop) state.wasteSize - 1 else state.wasteSize
         val n = minOf(visible, wasteSize).coerceAtLeast(0)
         val first = wasteSize - n
-        return (0 until n).map { k -> state.waste[first + k] to Offset(slotX(5) - (n - 1 - k) * wasteFan, topY) }
+        return (0 until n).map { k -> state.waste[first + k] to Offset(slotX(columns - 2) - (n - 1 - k) * wasteFan, topY) }
     }
 
     fun wasteTopRect(): Rect? = wastePositions().lastOrNull()?.let { Rect(it.second, cardSize) }
+
+    // ---- stock and completed runs (Spider and Scorpion)
+
+    private val stockFan: Float = cardWidth * 0.2f
+
+    /** Spider: one face-down card per deal left, fanned to the left of the stock slot. */
+    fun stockPositions(): List<Offset> {
+        if (state.stockSize == 0) return emptyList()
+        val deals = if (game == GameType.SPIDER) (state.stockSize + columns - 1) / columns else 1
+        return (0 until deals).map { k -> Offset(stockRect.left - (deals - 1 - k) * stockFan, topY) }
+    }
+
+    /** What counts as tapping the stock. */
+    private val stockHitRect: Rect
+        get() = if (game == GameType.SPIDER) Rect(stockRect.left - 4 * stockFan, topY, stockRect.right, stockRect.bottom) else stockRect
+
+    private val runFan: Float = cardWidth * 0.45f
+
+    /** Spider: where the k-th completed run (shown as its King) goes. */
+    fun completedRunOffset(k: Int): Offset = Offset(slotX(0) + k * runFan, topY)
 
     // ---- columns
 
@@ -70,7 +97,7 @@ class BoardLayout(
         val available = height - tableauTop - cardHeight - gap
         val needed = down * downStepFull + (up - 1) * upStepFull
         if (needed <= available || needed <= 0f) return downStepFull to upStepFull
-        val scale = (available / needed).coerceAtLeast(0.2f)
+        val scale = (available / needed).coerceAtLeast(0.1f)
         return downStepFull * scale to upStepFull * scale
     }
 
@@ -99,12 +126,14 @@ class BoardLayout(
     }
 
     fun hitTest(p: Offset): Hit? {
-        if (stockRect.contains(p)) return Hit.Stock
-        wasteTopRect()?.let { if (it.contains(p)) return Hit.Card(Source.Waste) }
-        for (suit in 0 until 4) {
-            if (foundationRect(suit).contains(p) && state.found[suit] > 0) return Hit.Card(Source.Foundation(suit))
+        if (stockHitRect.contains(p)) return Hit.Stock
+        if (game == GameType.KLONDIKE) {
+            wasteTopRect()?.let { if (it.contains(p)) return Hit.Card(Source.Waste) }
+            for (suit in 0 until 4) {
+                if (foundationRect(suit).contains(p) && state.found[suit] > 0) return Hit.Card(Source.Foundation(suit))
+            }
         }
-        for (c in 0 until GameState.COLUMNS) {
+        for (c in 0 until columns) {
             if (!columnRect(c).contains(p)) continue
             // The topmost card whose rectangle contains the point.
             for (i in state.tabSize[c] - 1 downTo 0) {
@@ -118,8 +147,10 @@ class BoardLayout(
 
     /** Drop target under point [p], if any. */
     fun dropTarget(p: Offset): Target? {
-        for (suit in 0 until 4) if (foundationRect(suit).inflate(gap).contains(p)) return Target.Foundation
-        for (c in 0 until GameState.COLUMNS) if (columnDropRect(c).contains(p)) return Target.Column(c)
+        if (game == GameType.KLONDIKE) {
+            for (suit in 0 until 4) if (foundationRect(suit).inflate(gap).contains(p)) return Target.Foundation
+        }
+        for (c in 0 until columns) if (columnDropRect(c).contains(p)) return Target.Column(c)
         return null
     }
 

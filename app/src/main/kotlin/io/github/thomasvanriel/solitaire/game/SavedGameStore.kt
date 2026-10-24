@@ -28,7 +28,8 @@ class SavedGameStore(private val context: Context) {
             .putLong("seed", g.seed)
             .putInt("ruleSet", g.ruleSet.id)
             .putInt("tier", g.tier.id)
-            .putString("moves", Base64.encodeToString(Move.encodeAll(g.moves), Base64.NO_WRAP))
+            .remove("moves") // the old two-byte format, from before Spider and Scorpion
+            .putString("moves3", Base64.encodeToString(Move.encodeAll(g.moves), Base64.NO_WRAP))
             .putLong("elapsed", g.elapsedSeconds)
             .putBoolean("counted", g.counted)
             .putBoolean("usedUndo", g.usedUndo)
@@ -44,7 +45,7 @@ class SavedGameStore(private val context: Context) {
                 seed = prefs.getLong("seed", 0),
                 ruleSet = RuleSet.byId(prefs.getInt("ruleSet", RuleSet.DRAW_1_UNLIMITED.id)),
                 tier = Tier.byId(prefs.getInt("tier", Tier.MEDIUM.id)),
-                moves = Move.decodeAll(Base64.decode(prefs.getString("moves", "") ?: "", Base64.NO_WRAP)),
+                moves = loadMoves(),
                 elapsedSeconds = prefs.getLong("elapsed", 0),
                 counted = prefs.getBoolean("counted", false),
                 usedUndo = prefs.getBoolean("usedUndo", false),
@@ -54,6 +55,12 @@ class SavedGameStore(private val context: Context) {
         } catch (_: IllegalArgumentException) {
             null
         }
+    }
+
+    /** Three bytes per move; games saved by version 0.2 used two (Klondike only) under the old key. */
+    private fun loadMoves(): List<Move> {
+        prefs.getString("moves3", null)?.let { return Move.decodeAll(Base64.decode(it, Base64.NO_WRAP)) }
+        return Move.decodeAll(Base64.decode(prefs.getString("moves", "") ?: "", Base64.NO_WRAP), bytesPerMove = 2)
     }
 
     var lastRuleSet: RuleSet

@@ -1,11 +1,13 @@
 package io.github.thomasvanriel.solitaire.engine.model
 
 /**
- * A Klondike position, stored as plain int arrays so it is cheap to copy and fast to change.
+ * A position in any of the games (see [GameType]), stored as plain int arrays so it is cheap to copy and fast to change.
  *
  * - `tab[c]` holds column c from the bottom (index 0) up. The lowest `tabDown[c]` cards are face down.
  * - `stock` and `waste` are stored bottom to top: the top card is at index `size - 1`.
- * - `found[s]` is how many cards of suit s are on their foundation (0..13).
+ * - `found[s]` is how many cards of suit s are on the foundations: 0..13 in Klondike, a multiple of 13 in
+ *   Spider and Scorpion, where only complete King-to-Ace runs leave the board (up to 104 in 1-suit Spider).
+ * - Spider and Scorpion don't use the waste or [recycles].
  *
  * The fields are public for speed. Only [io.github.thomasvanriel.solitaire.engine.rules.Rules] should
  * change them. The UI should treat states as read-only and use `Rules.apply`, which returns a new state.
@@ -21,13 +23,19 @@ class GameState(
     @JvmField val found: IntArray,
     @JvmField var recycles: Int,
 ) {
-    constructor() : this(
-        Array(COLUMNS) { IntArray(COLUMN_CAPACITY) }, IntArray(COLUMNS), IntArray(COLUMNS),
-        IntArray(52), 0, IntArray(52), 0, IntArray(4), 0,
+    /** An empty Klondike position. */
+    constructor() : this(COLUMNS, COLUMN_CAPACITY, 52)
+
+    constructor(columns: Int, columnCapacity: Int, deckSize: Int) : this(
+        Array(columns) { IntArray(columnCapacity) }, IntArray(columns), IntArray(columns),
+        IntArray(deckSize), 0, IntArray(deckSize), 0, IntArray(4), 0,
     )
 
+    /** Number of tableau columns. */
+    val columns: Int get() = tab.size
+
     fun copy(): GameState = GameState(
-        Array(COLUMNS) { tab[it].copyOf() }, tabSize.copyOf(), tabDown.copyOf(),
+        Array(columns) { tab[it].copyOf() }, tabSize.copyOf(), tabDown.copyOf(),
         stock.copyOf(), stockSize, waste.copyOf(), wasteSize, found.copyOf(), recycles,
     )
 
@@ -54,18 +62,19 @@ class GameState(
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is GameState) return false
+        if (columns != other.columns) return false
         if (stockSize != other.stockSize || wasteSize != other.wasteSize || recycles != other.recycles) return false
         if (!found.contentEquals(other.found)) return false
         if (!tabSize.contentEquals(other.tabSize) || !tabDown.contentEquals(other.tabDown)) return false
         for (i in 0 until stockSize) if (stock[i] != other.stock[i]) return false
         for (i in 0 until wasteSize) if (waste[i] != other.waste[i]) return false
-        for (c in 0 until COLUMNS) for (i in 0 until tabSize[c]) if (tab[c][i] != other.tab[c][i]) return false
+        for (c in 0 until columns) for (i in 0 until tabSize[c]) if (tab[c][i] != other.tab[c][i]) return false
         return true
     }
 
     override fun hashCode(): Int {
         var h = recycles
-        for (c in 0 until COLUMNS) {
+        for (c in 0 until columns) {
             h = h * 31 + tabDown[c]
             for (i in 0 until tabSize[c]) h = h * 31 + tab[c][i]
             h = h * 31 + 99
@@ -80,7 +89,11 @@ class GameState(
     override fun toString(): String = StateFormat.format(this)
 
     companion object {
+        /** Klondike's column count. Code that handles every game uses [columns] instead. */
         const val COLUMNS = 7
+
+        /** An empty position laid out for [rs]. */
+        fun forRules(rs: RuleSet): GameState = GameState(rs.columns, rs.columnCapacity, rs.deckSize)
 
         /** 6 face-down cards plus a 13-card run is 19. The extra room is for hand-built test positions. */
         const val COLUMN_CAPACITY = 32

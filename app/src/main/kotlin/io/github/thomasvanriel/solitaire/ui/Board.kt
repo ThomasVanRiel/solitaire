@@ -20,6 +20,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
 import io.github.thomasvanriel.solitaire.engine.model.Card
 import io.github.thomasvanriel.solitaire.engine.model.GameState
+import io.github.thomasvanriel.solitaire.engine.model.GameType
+import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.game.Source
 import io.github.thomasvanriel.solitaire.game.Target
 
@@ -31,7 +33,7 @@ private class DragState(val source: Source, val cards: List<Int>, val origin: Of
 @Composable
 fun Board(
     state: GameState,
-    drawCount: Int,
+    ruleSet: RuleSet,
     enabled: Boolean,
     onStock: () -> Unit,
     onTap: (Source) -> Unit,
@@ -48,7 +50,7 @@ fun Board(
         val density = LocalDensity.current
         val widthPx = with(density) { maxWidth.toPx() }
         val heightPx = with(density) { maxHeight.toPx() }
-        val layout = BoardLayout(widthPx, heightPx, state, drawCount)
+        val layout = BoardLayout(widthPx, heightPx, state, ruleSet)
 
         val currentLayout by rememberUpdatedState(layout)
         val currentState by rememberUpdatedState(state)
@@ -61,7 +63,7 @@ fun Board(
         Canvas(
             Modifier
                 .fillMaxSize()
-                .semantics { contentDescription = describe(state) }
+                .semantics { contentDescription = describe(state, ruleSet) }
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { p ->
                         if (!currentEnabled) return@detectTapGestures
@@ -104,9 +106,14 @@ fun Board(
             val hidden: Source? = d?.source
             drawFeltSurprise(seed, l)
             with(painter) {
-                // Stock
-                if (state.stockSize > 0) drawFaceDown(l.stockRect.topLeft, l.cardSize, l.corner)
-                else drawSlot(l.stockRect.topLeft, l.cardSize, l.corner, if (state.wasteSize > 0) "↻" else null)
+                // Stock (Spider shows one card per deal left)
+                val klondike = ruleSet.game == GameType.KLONDIKE
+                val stock = l.stockPositions()
+                if (stock.isEmpty()) {
+                    drawSlot(l.stockRect.topLeft, l.cardSize, l.corner, if (klondike && state.wasteSize > 0) "↻" else null)
+                } else {
+                    for (pos in stock) drawFaceDown(pos, l.cardSize, l.corner)
+                }
 
                 // Waste (leaving out the top card while it is being dragged)
                 for ((card, pos) in l.wastePositions(hideTop = hidden == Source.Waste)) {
@@ -114,19 +121,35 @@ fun Board(
                 }
 
                 // Foundations
-                for (suit in 0 until 4) {
-                    val r = l.foundationRect(suit)
-                    val f = state.found[suit]
-                    val draggingThis = hidden is Source.Foundation && hidden.suit == suit
-                    val shown = if (draggingThis) f - 1 else f
-                    if (shown > 0) drawFaceUp(Card.of(suit, shown - 1), r.topLeft, l.cardSize, l.corner)
-                    else drawFoundationSlot(suit, r.topLeft, l.cardSize, l.corner)
+                when (ruleSet.game) {
+                    GameType.KLONDIKE -> for (suit in 0 until 4) {
+                        val r = l.foundationRect(suit)
+                        val f = state.found[suit]
+                        val draggingThis = hidden is Source.Foundation && hidden.suit == suit
+                        val shown = if (draggingThis) f - 1 else f
+                        if (shown > 0) drawFaceUp(Card.of(suit, shown - 1), r.topLeft, l.cardSize, l.corner)
+                        else drawFoundationSlot(suit, r.topLeft, l.cardSize, l.corner)
+                    }
+                    // A completed run shows as its King.
+                    GameType.SCORPION -> for (suit in 0 until 4) {
+                        val r = l.foundationRect(suit)
+                        if (state.found[suit] > 0) drawFaceUp(Card.of(suit, Card.KING), r.topLeft, l.cardSize, l.corner)
+                        else drawFoundationSlot(suit, r.topLeft, l.cardSize, l.corner)
+                    }
+                    GameType.SPIDER -> {
+                        var k = 0
+                        for (suit in 0 until 4) repeat(state.found[suit] / 13) {
+                            drawFaceUp(Card.of(suit, Card.KING), l.completedRunOffset(k++), l.cardSize, l.corner)
+                        }
+                        if (k == 0) drawSlot(l.completedRunOffset(0), l.cardSize, l.corner, null)
+                    }
                 }
 
                 // Columns
-                for (c in 0 until GameState.COLUMNS) {
+                val emptyLabel = if (ruleSet.game == GameType.SPIDER) null else "K"
+                for (c in 0 until state.columns) {
                     val size = state.tabSize[c]
-                    if (size == 0) drawSlot(l.cardOffset(c, 0), l.cardSize, l.corner, "K")
+                    if (size == 0) drawSlot(l.cardOffset(c, 0), l.cardSize, l.corner, emptyLabel)
                     val stopAt = if (hidden is Source.Column && hidden.col == c) hidden.index else size
                     for (i in 0 until stopAt) {
                         val pos = l.cardOffset(c, i)
@@ -158,15 +181,18 @@ private fun cardsOf(s: GameState, source: Source): List<Int> = when (source) {
 }
 
 /** A plain-language summary of the board for screen readers. */
-private fun describe(s: GameState): String = buildString {
+private fun describe(s: GameState, rs: RuleSet): String = buildString {
     append("Stock ${s.stockSize} cards. ")
-    val w = s.wasteTop()
-    append(if (w >= 0) "Waste: ${Card.spoken(w)}. " else "Waste empty. ")
-    for (c in 0 until GameState.COLUMNS) {
+    if (rs.game == GameType.KLONDIKE) {
+        val w = s.wasteTop()
+        append(if (w >= 0) "Waste: ${Card.spoken(w)}. " else "Waste empty. ")
+    }
+    for (c in 0 until s.columns) {
         val top = s.columnTop(c)
         append("Column ${c + 1}: ")
         append(if (top < 0) "empty" else "${Card.spoken(top)}, ${s.tabDown[c]} hidden")
         append(". ")
     }
-    append("Foundations: ${s.foundationCount} cards.")
+    if (rs.game == GameType.KLONDIKE) append("Foundations: ${s.foundationCount} cards.")
+    else append("Completed suits: ${s.foundationCount / 13} of ${rs.deckSize / 13}.")
 }

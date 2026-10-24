@@ -343,3 +343,135 @@ Every `Solved` proof verified.
   SplitMix64 hash of the deal number, so it's always the same deals. It's placed in the empty bottom part of
   the board. Among the shipped deals it's on #100 (draw 1 expert), #135 (draw 1 easy), #152 (draw 3 expert),
   #190 and others.
+
+## Spider and Scorpion II (2026-10-24, version 0.3.0)
+
+Added at the owner's request: **Spider** (1, 2 and 4 suits) and **Scorpion II**. Klondike is unchanged:
+same deals, same move codes, same packs (all 800 Klondike proofs still replay).
+
+### Rules as implemented
+- **Spider**: two decks (1 suit = eight sets of spades; 2 suits = spades and hearts; 4 suits = two full
+  decks), 10 columns. 54 cards dealt round the columns (columns 1-4 get 6, the rest 5), top card face up;
+  50 cards in the stock (five deals). Build down regardless of suit; only a same-suit run moves as a unit;
+  any card or run may go into an empty column. A deal puts one card face up on every column and is only
+  allowed when no column is empty.
+- **Scorpion II** (rules checked against Goodsol's and TASVideos' descriptions): 7 columns of 7; columns
+  1-3 have their lowest 3 cards face down, everything else face up. Build down in suit. Any face-up card
+  moves together with every card on top of it. Only a King (with what's on it) may go into an empty column.
+  The 3 reserve cards are dealt once, one onto each of columns 1-3 (also onto empty columns).
+- **Both**: a complete King-to-Ace run of one suit leaves the board. This is a **forced move in the rules**
+  (`TableauToFoundation(col)`): while one shows, it is the only legal move. So the solver, the stored proof,
+  `ProofVerifier` and the UI all agree, and the UI simply plays it straight after the move that completed
+  the run. In classic Scorpion completed runs stay in their columns; taking them off is how most apps do it
+  and only makes play easier, never harder.
+- Won when every card has left the board (for Klondike this is the same as all 52 on the foundations).
+
+### Engine changes
+- `RuleSet` gained `game` (`GameType`: KLONDIKE, SPIDER, SCORPION), `suits`, `columns`, `deckSize`, labels.
+  New ids: 3 = Spider 1 suit, 4 = 2 suits, 5 = 4 suits, 6 = Scorpion II.
+- `GameState` takes its column count and capacities from the rule set (`GameState.forRules`).
+  `found[suit]` counts cards, so it goes in steps of 13 in Spider/Scorpion and up to 104 in 1-suit Spider.
+- `Move` codes widened from 13 to 17 bits (column fields up to 15, run length up to 63) **without changing
+  any Klondike code value**. Saved games now use 3 bytes per move under a new key (`moves3`); games saved by
+  0.2 (2 bytes, key `moves`) still load.
+- `Deals.deal(seed, ruleSet)`. The one-deck shuffle is identical, so Klondike deal numbers are unchanged
+  (golden tests still pass); Spider shuffles its 104 cards with the same Fisher–Yates and RNG.
+- `SolutionCodec`: an index of 255 or more is stored as 255 plus two bytes. Spider can have more than 255
+  legal moves (many empty columns and long runs). No Klondike index ever reached 255, so old packs read the
+  same; `ShippedPacksTest` proves it by replaying them.
+- `StateValidator` checks multisets (Spider has duplicate cards) and only checks run order in Klondike.
+
+### Solver (`RunGameSolver`, chosen by `DealSolver.create`)
+Same design as the Klondike solver: DFS, Zobrist transposition table, restarts with random tie-breaks.
+- Complete runs come off straight away (forced). Ordering: build in suit, reveal a face-down card, empty a
+  column, King to an empty column (Scorpion), other moves, deal last.
+- Pruning (can lose solutions, never invents them): never split a same-suit run (Spider), never move a run
+  from one off-suit card to another of the same rank, only uncover a face-up card if some run head could then
+  go on it, never move a whole column into an empty one, and once the stock is empty only use the first
+  empty column. Columns are hashed in order while the stock has cards (a deal treats columns differently),
+  and as a sum after that.
+
+Benchmark, 100 seeds each, 300k node budget, single thread:
+
+| Rule set | Solved | Proved unsolvable | Unknown | Median | Median solution |
+|---|---|---|---|---|---|
+| Spider 1 suit | 99% | 0% | 1% | 0.5 ms | 119 moves |
+| Spider 2 suits | 94% | 0% | 6% | 11 ms | 159 moves |
+| Spider 4 suits | 11% | 0% | 89% | 563 ms | 326 moves |
+| Scorpion II | 24% | 43% | 33% | 318 ms | 55 moves |
+
+At 3M nodes, 4-suit Spider reaches 30% (30 seeds). Only solved deals are ever served, so a weak solve rate
+only costs generation time; it also means the 4-suit packs lean towards deals the solver finds easier.
+
+### Difficulty
+- `RunGamePlayer` is the fair-information player for both games. It never looks at face-down cards or the
+  stock, and never returns to a position it has seen in the same game. A test shuffles all hidden cards and
+  checks its choices don't change.
+  - Scorpion: simple move priorities (reveal, empty a column, build, King to an empty column, deal).
+  - Spider: one-move look-ahead on a visible score (face-down cards, empty columns, cards on the next rank,
+    much more in suit). The card a move would turn over is ignored when scoring, so it can't peek. It deals
+    only when nothing improves the position.
+- **Spider is rated by progress, not wins.** Even this player almost never wins 2- or 4-suit Spider
+  (100% of calibration deals had 0 wins out of 30), so counting wins can't separate the tiers. A Spider
+  rating is the average over 30 games of: 1 for a win, otherwise 0.8 × (half the share of face-down cards
+  turned over + half the share of cards taken off), in percent. For Spider the pack's `wins` byte holds
+  this percentage. Klondike and Scorpion keep plain wins out of 30.
+- Cut-offs, at roughly the quartiles of 300–400 winnable deals each:
+
+| Rule set | Expert | Hard | Medium | Easy |
+|---|---|---|---|---|
+| Scorpion II (wins of 30) | 0 (9%) | 1–5 (23%) | 6–16 (33%) | 17–30 (35%) |
+| Spider 1 suit (rating %) | ≤33 (24%) | 34–44 (25%) | 45–51 (25%) | ≥52 (27%) |
+| Spider 2 suits (rating %) | ≤14 (25%) | 15–17 (24%) | 18–20 (26%) | ≥21 (25%) |
+| Spider 4 suits (rating %) | ≤11 (28%) | 12–13 (23%) | 14–15 (27%) | ≥16 (21%) |
+
+### App
+- New game dialog: Game (Klondike / Spider / Scorpion II), then Draw or Suits, then difficulty, with a
+  one-line rules summary per game. The Stats screen uses the same picker; stats are kept per variant.
+- Board: 10 narrower columns for Spider. The stock sits far right as before; Spider shows one face-down card
+  per deal left, fanned left. Completed runs show as their Kings on the left (fanned in Spider, one slot per
+  suit in Scorpion). Empty Spider columns have no "K" label.
+- Tap a card in Spider/Scorpion to move it and everything on it: onto a same-suit card first, then any
+  other card, then an empty column. Drag works as before.
+- Completed runs are taken off right after the move that completes them; **Undo** undoes both together.
+- Tapping the Spider stock with an empty column shows "Fill every empty column before dealing".
+- Version 0.3.0 (code 3). Store texts updated.
+
+### Packs and tests
+`./gradlew :dealgen:run --args="--rules spider1,spider2,spider4,scorpion2 --per-tier 100"` (8 threads,
+log in `logs/dealgen-spider-scorpion.txt`). The Klondike packs were not touched.
+
+| Rule set | Seeds tried | Time | Avg solution | Pack size (each tier) |
+|---|---|---|---|---|
+| Spider 1 suit | 425 | 2 s | 120 moves | 8–9 KiB |
+| Spider 2 suits | 457 | 8 s | 163 moves | 12 KiB |
+| Spider 4 suits | 3,084 | 323 s | 339 moves | 23–25 KiB |
+| Scorpion II | 5,407 | 467 s | 55 moves | 2 KiB |
+
+All 1,600 new proofs were verified when written and again on read-back. `:engine:test`: 61 tests, 0 failures,
+including `ShippedPacksTest` replaying all 2,400 shipped proofs and the new `RunGamesTest` (deal layouts,
+every rule, forced run removal, apply/undo, a 2,000-game fuzz over the four new rule sets, wide move codes,
+the codec escape, solver proofs, corrupted proofs, and the fairness of the new player).
+
+### Checked on the emulator
+The owner built `:engine:test :app:assembleDebug :app:lint`: success on the first try, and lint reports
+nothing new (`logs/spider-build.log`).
+- `screenshots/s1-newgame*.png`: the dialog with the game and suits pickers and the rules summaries.
+- `s1-spider-start.png`, `s1-spider-tap-deal.png`: the Spider 2-suit layout. Tapping 7♠ put it on 8♠ and
+  turned over the card underneath, and the deal put one card on each column (4 deals left in the fan).
+- `s1-spider-mid.png`, `s1-spider-win.png`: the stored proof for #1 played in the real UI to a win in 192
+  moves. `s1-spider-undo.png`: Undo after the win went to 190 moves, taking back the run removal and the move
+  that completed it together. Tapping 10♠ then completed the run by hand; it came off and the game was won
+  (`s1-spider-manual-win.png`).
+- `s1-scorpion-*.png`: the Scorpion II layout (3 face-down cards in columns 1-3, stock of 3). Tapping 4♠
+  carried 3♠ onto 5♠. The proof for #6 played to a win in 54 moves, with the Kings in their suit slots.
+- `s1-spider4-*.png`: a 4-suit Expert proof (#71, 418 moves) played to a win; long columns fit.
+- `s1-stats.png`: the Stats screen with the new picker, version 0.3.0.
+- `s1-resume-klondike.png`: the saved Klondike game from 0.2.0 came back after the update.
+- No app errors in logcat. The owner saw "Draw context is NULL" in the emulator's console; that comes from
+  the emulator's host renderer when windows are torn down (force-restarts and screenshots), not from the app.
+
+### Known issues
+- 4-suit Spider deals are limited to the ones the solver can crack within 300k nodes (about 15%).
+- The Spider difficulty player is weak (it rarely wins 2- or 4-suit games), so the Spider tiers rest on how
+  far it gets rather than on wins. A stronger fair player would make the tiers more meaningful.

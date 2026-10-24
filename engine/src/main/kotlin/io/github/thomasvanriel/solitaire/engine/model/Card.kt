@@ -35,6 +35,9 @@ object Card {
     fun stacksOn(card: Int, onto: Int): Boolean =
         rank(card) + 1 == rank(onto) && color(card) != color(onto)
 
+    /** True if [card] continues a same-suit run on [onto] (one rank lower, same suit). */
+    fun followsInSuit(card: Int, onto: Int): Boolean = card + 1 == onto && rank(onto) != ACE
+
     /** Short code such as "TH" (ten of hearts) or "AS". */
     fun code(card: Int): String = "${RANK_CHARS[rank(card)]}${SUIT_CHARS[suit(card)]}"
 

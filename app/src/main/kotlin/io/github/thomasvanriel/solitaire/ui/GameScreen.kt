@@ -1,6 +1,8 @@
 package io.github.thomasvanriel.solitaire.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.thomasvanriel.solitaire.DebugTools
 import io.github.thomasvanriel.solitaire.engine.difficulty.Tier
+import io.github.thomasvanriel.solitaire.engine.model.GameType
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.game.GameUiState
 import io.github.thomasvanriel.solitaire.game.GameViewModel
@@ -79,7 +83,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
             } else {
                 Board(
                     state = game.state,
-                    drawCount = ui.ruleSet.drawCount,
+                    ruleSet = ui.ruleSet,
                     enabled = !ui.busy && !ui.won,
                     onStock = vm::tapStock,
                     onTap = vm::tap,
@@ -88,6 +92,16 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                     seed = ui.seed,
                     modifier = Modifier.fillMaxSize().padding(top = 4.dp),
                 )
+            }
+        }
+        val notice = ui.notice
+        if (notice != null) {
+            Surface(
+                Modifier.align(Alignment.BottomCenter).padding(24.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = Color(0xE6212121),
+            ) {
+                Text(notice, color = Color.White, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
             }
         }
         if (ui.won && !ui.busy) WinOverlay(ui, onNewGame = { showNewGame = true })
@@ -148,7 +162,7 @@ private fun TopBar(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onStats) { Text("Stats", color = Color.White) }
             Text(
-                "#${ui.seed} · Draw ${ui.ruleSet.drawCount} · ${ui.tier.label}",
+                "#${ui.seed} · ${ui.ruleSet.label} · ${ui.tier.label}",
                 color = Color.White,
                 style = MaterialTheme.typography.labelLarge,
             )
@@ -174,7 +188,7 @@ private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit) {
                 Text("You won!", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Deal #${ui.seed} (${ui.tier.label}, draw ${ui.ruleSet.drawCount})\n" +
+                    "Deal #${ui.seed} (${ui.ruleSet.label}, ${ui.tier.label})\n" +
                         "${ui.moveCount} moves in ${formatTime(ui.elapsedSeconds)}",
                     textAlign = TextAlign.Center,
                 )
@@ -209,7 +223,7 @@ private fun NewGameDialog(
         onDismissRequest = onDismiss,
         title = { Text("New game") },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
                     "Every deal can be won. Each one comes with a winning sequence that the game's own " +
                         "rules have checked. You can't see the face-down cards, so you may still get " +
@@ -217,16 +231,9 @@ private fun NewGameDialog(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(12.dp))
-                Text("Draw", style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (rs in RuleSet.ALL) {
-                        FilterChip(
-                            selected = ruleSet == rs.id,
-                            onClick = { ruleSet = rs.id },
-                            label = { Text(if (rs.drawCount == 1) "1 card" else "3 cards") },
-                        )
-                    }
-                }
+                RuleSetPicker(RuleSet.byId(ruleSet), onSelect = { ruleSet = it.id })
+                Spacer(Modifier.height(4.dp))
+                Text(rulesSummary(RuleSet.byId(ruleSet)), style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(8.dp))
                 Text("Difficulty", style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -243,6 +250,16 @@ private fun NewGameDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
+}
+
+/** The rules in one or two sentences, for the New game dialog. */
+private fun rulesSummary(rs: RuleSet): String = when (rs.game) {
+    GameType.KLONDIKE -> "Build down in alternating colours and move every card to the foundations, Ace to King."
+    GameType.SPIDER -> "Build down in any suit, but only runs of one suit move together. A King-to-Ace run of " +
+        "one suit is taken off. Tap the stock to deal a card onto every column (no column may be empty)."
+    GameType.SCORPION -> "Build down in suit. Any face-up card moves together with all the cards on top of it. " +
+        "Only a King may fill an empty column. A King-to-Ace run is taken off. The stock deals once, onto " +
+        "the first three columns."
 }
 
 private fun formatTime(seconds: Long): String = "%d:%02d".format(seconds / 60, seconds % 60)

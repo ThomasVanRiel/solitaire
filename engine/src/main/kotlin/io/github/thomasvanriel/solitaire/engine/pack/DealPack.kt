@@ -37,7 +37,7 @@ class DealPack(
     /** Decodes and replays an entry's solution. Returns the moves only if the proof holds, otherwise null. */
     fun verifiedSolution(entry: PackEntry): List<Move>? {
         val moves = try {
-            SolutionCodec.decode(Deals.deal(entry.seed, shuffleVersion), ruleSet, entry.solution)
+            SolutionCodec.decode(Deals.deal(entry.seed, ruleSet, shuffleVersion), ruleSet, entry.solution)
         } catch (_: IllegalArgumentException) {
             return null
         }

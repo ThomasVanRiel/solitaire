@@ -31,6 +31,7 @@ tasks.test {
     inputs.dir(packsDir).optional().withPropertyName("packs")
     systemProperty("packs.dir", packsDir.asFile.absolutePath)
     systemProperty("bench.seeds", providers.gradleProperty("benchSeeds").getOrElse("1000"))
+    systemProperty("bench.rules", providers.gradleProperty("benchRules").getOrElse("DRAW_1_UNLIMITED,DRAW_3_UNLIMITED"))
     systemProperty("bench.nodes", providers.gradleProperty("benchNodes").getOrElse("2000000"))
     testLogging {
         events("failed")

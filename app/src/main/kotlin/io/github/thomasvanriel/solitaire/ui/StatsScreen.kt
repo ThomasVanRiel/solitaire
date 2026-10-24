@@ -17,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -66,15 +65,7 @@ fun StatsScreen(
                 TextButton(onClick = onClose) { Text("Close") }
             }
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (rs in RuleSet.ALL) {
-                    FilterChip(
-                        selected = rs.id == ruleSetId,
-                        onClick = { ruleSetId = rs.id },
-                        label = { Text(if (rs.drawCount == 1) "Draw 1" else "Draw 3") },
-                    )
-                }
-            }
+            RuleSetPicker(ruleSet, onSelect = { ruleSetId = it.id }, showTitles = false)
             Spacer(Modifier.height(12.dp))
 
             Card(Modifier.fillMaxWidth()) {

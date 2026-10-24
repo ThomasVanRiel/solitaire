@@ -2,35 +2,76 @@ package io.github.thomasvanriel.solitaire.engine.rules
 
 import io.github.thomasvanriel.solitaire.engine.model.Card
 import io.github.thomasvanriel.solitaire.engine.model.GameState
+import io.github.thomasvanriel.solitaire.engine.model.GameType
 import io.github.thomasvanriel.solitaire.engine.model.Move
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 
 /**
- * The one and only Klondike rules implementation. The game, the solver and the proof verifier all use it.
+ * The one and only rules implementation, for every game in [GameType]. The game, the solvers and the proof
+ * verifier all use it.
  *
  * Fast path (solver): [legalMoveCodes], [applyCode] and [undoCode] change a [GameState] in place
  * and work on int move codes (see [Move]).
  * Convenience path (UI, tests): [legalMoves], [isLegal] and [apply], which returns a new state.
  */
 object Rules {
-    /** More than the number of legal moves in any position. */
-    const val MAX_MOVES = 640
+    /** More than the number of legal moves in any position of any game. */
+    const val MAX_MOVES = 2048
 
-    // Undo token layout: bits 0-12 move code, bit 13 "a card was flipped", bits 14-17 cards drawn,
-    // bits 18-19 suit of a card that went to a foundation.
+    /** Cards in a complete run, which leaves the board in Spider and Scorpion. */
+    const val RUN = 13
+
+    // Undo token layout: bits 0-16 move code, bit 17 "a card was flipped", bits 18-21 cards drawn or dealt,
+    // bits 22-23 suit of the card(s) that went to a foundation.
     private const val FLIP_BIT = 1 shl Move.CODE_BITS
     private const val DRAWN_SHIFT = Move.CODE_BITS + 1
     private const val SUIT_SHIFT = DRAWN_SHIFT + 4
 
-    fun isWon(s: GameState): Boolean = s.found[0] == 13 && s.found[1] == 13 && s.found[2] == 13 && s.found[3] == 13
+    /** Won when every card has left the board (in Klondike: all 52 are on the foundations). */
+    fun isWon(s: GameState): Boolean {
+        if (s.stockSize != 0 || s.wasteSize != 0) return false
+        for (c in 0 until s.columns) if (s.tabSize[c] != 0) return false
+        return true
+    }
 
     fun canRecycle(s: GameState, rs: RuleSet): Boolean =
-        s.stockSize == 0 && s.wasteSize > 0 && (rs.maxRecycles < 0 || s.recycles < rs.maxRecycles)
+        rs.game == GameType.KLONDIKE &&
+            s.stockSize == 0 && s.wasteSize > 0 && (rs.maxRecycles < 0 || s.recycles < rs.maxRecycles)
 
-    /** True if [card] may be placed on column [col] (on a matching card, or a King on an empty column). */
+    /** Spider and Scorpion: true if column [col] ends in a complete face-up King-to-Ace run of one suit. */
+    fun hasCompleteRun(s: GameState, col: Int): Boolean {
+        val size = s.tabSize[col]
+        if (size < RUN || size - RUN < s.tabDown[col]) return false
+        val c = s.tab[col]
+        if (Card.rank(c[size - 1]) != Card.ACE) return false
+        for (i in size - RUN + 1 until size) if (!Card.followsInSuit(c[i], c[i - 1])) return false
+        return true
+    }
+
+    /** Spider: can a deal be made? It needs cards in the stock and no empty column. */
+    fun canDeal(s: GameState, rs: RuleSet): Boolean {
+        if (s.stockSize == 0) return false
+        if (rs.game == GameType.SPIDER) for (c in 0 until s.columns) if (s.tabSize[c] == 0) return false
+        return true
+    }
+
+    /** Columns that one deal from the stock covers (Spider: all of them; Scorpion: the first three). */
+    private fun dealColumns(s: GameState, rs: RuleSet): Int = if (rs.game == GameType.SCORPION) 3 else s.columns
+
+    /** Klondike: true if [card] may be placed on column [col] (on a matching card, or a King on an empty column). */
     fun fitsOnColumn(s: GameState, card: Int, col: Int): Boolean {
         val n = s.tabSize[col]
         return if (n == 0) Card.rank(card) == Card.KING else Card.stacksOn(card, s.tab[col][n - 1])
+    }
+
+    /** True if [card] (heading a movable group) may be placed on column [col] under [rs]'s rules. */
+    fun fitsOnColumn(s: GameState, rs: RuleSet, card: Int, col: Int): Boolean {
+        val n = s.tabSize[col]
+        return when (rs.game) {
+            GameType.KLONDIKE -> fitsOnColumn(s, card, col)
+            GameType.SPIDER -> n == 0 || Card.rank(card) + 1 == Card.rank(s.tab[col][n - 1])
+            GameType.SCORPION -> if (n == 0) Card.rank(card) == Card.KING else Card.followsInSuit(card, s.tab[col][n - 1])
+        }
     }
 
     fun fitsOnFoundation(s: GameState, card: Int): Boolean = s.found[Card.suit(card)] == Card.rank(card)
@@ -39,9 +80,45 @@ object Rules {
      * Writes the codes of every legal move into [out] and returns how many there are.
      * The order is fixed, so results are deterministic.
      */
-    fun legalMoveCodes(s: GameState, rs: RuleSet, out: IntArray): Int {
+    fun legalMoveCodes(s: GameState, rs: RuleSet, out: IntArray): Int = when (rs.game) {
+        GameType.KLONDIKE -> klondikeMoves(s, rs, out)
+        GameType.SPIDER, GameType.SCORPION -> runGameMoves(s, rs, out)
+    }
+
+    /**
+     * Spider and Scorpion. A complete King-to-Ace run must leave the board straight away: while one is
+     * showing, taking it off is the only legal move. Then group moves, then the deal.
+     */
+    private fun runGameMoves(s: GameState, rs: RuleSet, out: IntArray): Int {
         var n = 0
-        val cols = GameState.COLUMNS
+        val cols = s.columns
+        for (c in 0 until cols) if (hasCompleteRun(s, c)) out[n++] = Move.encode(Move.TYPE_T2F, c, 0, 0)
+        if (n > 0) return n
+
+        val spider = rs.game == GameType.SPIDER
+        for (from in 0 until cols) {
+            val size = s.tabSize[from]
+            if (size == 0) continue
+            val col = s.tab[from]
+            val up = size - s.tabDown[from]
+            var count = 1
+            while (count <= up) {
+                val card = col[size - count]
+                // Spider moves only same-suit runs together. Scorpion moves any face-up card with all above it.
+                if (spider && count > 1 && !Card.followsInSuit(col[size - count + 1], card)) break
+                for (to in 0 until cols) {
+                    if (to != from && fitsOnColumn(s, rs, card, to)) out[n++] = Move.encode(Move.TYPE_T2T, from, to, count)
+                }
+                count++
+            }
+        }
+        if (canDeal(s, rs)) out[n++] = Move.encode(Move.TYPE_DRAW, 0, 0, 0)
+        return n
+    }
+
+    private fun klondikeMoves(s: GameState, rs: RuleSet, out: IntArray): Int {
+        var n = 0
+        val cols = s.columns
 
         // Waste
         if (s.wasteSize > 0) {
@@ -115,6 +192,12 @@ object Rules {
     fun applyCode(s: GameState, rs: RuleSet, code: Int): Int {
         when (Move.type(code)) {
             Move.TYPE_DRAW -> {
+                if (rs.game != GameType.KLONDIKE) {
+                    // Deal one card face up onto each of the first k columns, left to right.
+                    val k = minOf(dealColumns(s, rs), s.stockSize)
+                    for (c in 0 until k) s.tab[c][s.tabSize[c]++] = s.stock[--s.stockSize]
+                    return code or (k shl DRAWN_SHIFT)
+                }
                 val k = minOf(rs.drawCount, s.stockSize)
                 repeat(k) { s.waste[s.wasteSize++] = s.stock[--s.stockSize] }
                 return code or (k shl DRAWN_SHIFT)
@@ -136,6 +219,13 @@ object Rules {
             }
             Move.TYPE_T2F -> {
                 val from = Move.a(code)
+                if (rs.game != GameType.KLONDIKE) {
+                    // A complete run leaves the board.
+                    val suit = Card.suit(s.tab[from][s.tabSize[from] - 1])
+                    s.tabSize[from] -= RUN
+                    s.found[suit] += RUN
+                    return code or (suit shl SUIT_SHIFT) or flipIfNeeded(s, from)
+                }
                 val suit = Card.suit(s.tab[from][--s.tabSize[from]])
                 s.found[suit]++
                 return code or (suit shl SUIT_SHIFT) or flipIfNeeded(s, from)
@@ -179,7 +269,11 @@ object Rules {
         when (Move.type(code)) {
             Move.TYPE_DRAW -> {
                 val k = (token ushr DRAWN_SHIFT) and 15
-                repeat(k) { s.stock[s.stockSize++] = s.waste[--s.wasteSize] }
+                if (rs.game != GameType.KLONDIKE) {
+                    for (c in k - 1 downTo 0) s.stock[s.stockSize++] = s.tab[c][--s.tabSize[c]]
+                } else {
+                    repeat(k) { s.stock[s.stockSize++] = s.waste[--s.wasteSize] }
+                }
             }
             Move.TYPE_RECYCLE -> {
                 while (s.stockSize > 0) s.waste[s.wasteSize++] = s.stock[--s.stockSize]
@@ -197,7 +291,12 @@ object Rules {
                 val from = Move.a(code)
                 val suit = (token ushr SUIT_SHIFT) and 3
                 if (flipped) s.tabDown[from]++
-                s.tab[from][s.tabSize[from]++] = Card.of(suit, --s.found[suit])
+                if (rs.game != GameType.KLONDIKE) {
+                    for (r in Card.KING downTo Card.ACE) s.tab[from][s.tabSize[from]++] = Card.of(suit, r)
+                    s.found[suit] -= RUN
+                } else {
+                    s.tab[from][s.tabSize[from]++] = Card.of(suit, --s.found[suit])
+                }
             }
             Move.TYPE_T2T -> {
                 val from = Move.a(code)

@@ -12,7 +12,7 @@ import io.github.thomasvanriel.solitaire.engine.shuffle.Deals
  */
 object ProofVerifier {
     fun verify(seed: Long, ruleSet: RuleSet, moves: List<Move>, shuffleVersion: Int = Deals.SHUFFLE_V1): Boolean =
-        verifyFrom(Deals.deal(seed, shuffleVersion), ruleSet, moves)
+        verifyFrom(Deals.deal(seed, ruleSet, shuffleVersion), ruleSet, moves)
 
     fun verifyFrom(start: GameState, ruleSet: RuleSet, moves: List<Move>): Boolean {
         var s = start

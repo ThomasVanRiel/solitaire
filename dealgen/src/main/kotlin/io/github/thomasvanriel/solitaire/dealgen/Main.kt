@@ -9,7 +9,7 @@ import io.github.thomasvanriel.solitaire.engine.pack.SolutionCodec
 import io.github.thomasvanriel.solitaire.engine.shuffle.Deals
 import io.github.thomasvanriel.solitaire.engine.solver.ProofVerifier
 import io.github.thomasvanriel.solitaire.engine.solver.SolveResult
-import io.github.thomasvanriel.solitaire.engine.solver.Solver
+import io.github.thomasvanriel.solitaire.engine.solver.DealSolver
 import java.io.File
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
@@ -18,7 +18,8 @@ import kotlin.system.exitProcess
 private const val USAGE = """
 Usage: ./gradlew :dealgen:run --args="[options]"
 
-  --rules draw1,draw3   rule sets to generate (default: draw1,draw3)
+  --rules LIST          rule sets to generate, comma-separated, from
+                        draw1, draw3, spider1, spider2, spider4, scorpion2 (default: all of them)
   --per-tier N          deals per tier per rule set (default: 2500)
   --start-seed S        first seed to try (default: 1)
   --threads T           worker threads (default: CPU count - 1)
@@ -71,12 +72,8 @@ private fun parse(args: Array<String>): Options {
     val known = setOf("rules", "per-tier", "start-seed", "threads", "playouts", "nodes", "out", "calibrate")
     val unknown = map.keys - known
     require(unknown.isEmpty()) { "Unknown option(s): $unknown" }
-    val rules = (map["rules"] ?: "draw1,draw3").split(',').map {
-        when (it.trim()) {
-            "draw1" -> RuleSet.DRAW_1_UNLIMITED
-            "draw3" -> RuleSet.DRAW_3_UNLIMITED
-            else -> throw IllegalArgumentException("Unknown rule set '$it'")
-        }
+    val rules = (map["rules"] ?: RULE_NAMES.keys.joinToString(",")).split(',').map {
+        RULE_NAMES[it.trim()] ?: throw IllegalArgumentException("Unknown rule set '$it'")
     }
     return Options(
         ruleSets = rules,
@@ -90,13 +87,22 @@ private fun parse(args: Array<String>): Options {
     )
 }
 
-private val solvers = ThreadLocal<HashMap<Pair<RuleSet, Long>, Solver>>()
+private val RULE_NAMES = linkedMapOf(
+    "draw1" to RuleSet.DRAW_1_UNLIMITED,
+    "draw3" to RuleSet.DRAW_3_UNLIMITED,
+    "spider1" to RuleSet.SPIDER_1_SUIT,
+    "spider2" to RuleSet.SPIDER_2_SUITS,
+    "spider4" to RuleSet.SPIDER_4_SUITS,
+    "scorpion2" to RuleSet.SCORPION_II,
+)
+
+private val solvers = ThreadLocal<HashMap<Pair<RuleSet, Long>, DealSolver>>()
 
 /** Solves, verifies and rates one seed. Nothing is accepted unless ProofVerifier replays it to a win. */
 private fun process(seed: Long, rs: RuleSet, o: Options): Outcome {
-    val cache = solvers.get() ?: HashMap<Pair<RuleSet, Long>, Solver>().also { solvers.set(it) }
-    val solver = cache.getOrPut(rs to o.nodes) { Solver(rs, maxNodes = o.nodes, timeLimitMs = 120_000) }
-    val start = Deals.deal(seed)
+    val cache = solvers.get() ?: HashMap<Pair<RuleSet, Long>, DealSolver>().also { solvers.set(it) }
+    val solver = cache.getOrPut(rs to o.nodes) { DealSolver.create(rs, maxNodes = o.nodes, timeLimitMs = 120_000) }
+    val start = Deals.deal(seed, rs)
     return when (val r = solver.solve(start)) {
         is SolveResult.Unsolvable -> Outcome(seed, null, null, "unsolvable")
         is SolveResult.Unknown -> Outcome(seed, null, null, "unknown")
@@ -133,7 +139,8 @@ private fun runBatches(rs: RuleSet, o: Options, pool: java.util.concurrent.Execu
 }
 
 private fun calibrate(rs: RuleSet, o: Options, pool: java.util.concurrent.ExecutorService) {
-    val histogram = IntArray(o.playouts + 1)
+    val max = DifficultyRater.maxRating(rs, o.playouts)
+    val histogram = IntArray(max + 1)
     var solved = 0
     var other = 0
     val t0 = System.nanoTime()
@@ -144,11 +151,13 @@ private fun calibrate(rs: RuleSet, o: Options, pool: java.util.concurrent.Execut
         } else other++
         solved < o.calibrate
     }
+    val unit = if (max == o.playouts) "wins" else "rating"
     println("== Calibration for $rs: $solved winnable deals (plus $other skipped) in ${secs(t0)} s")
     var cumulative = 0
-    for (w in 0..o.playouts) {
+    for (w in 0..max) {
         cumulative += histogram[w]
-        println("wins %2d/%d: %5d  (%5.1f%%, cumulative %5.1f%%)".format(w, o.playouts, histogram[w], 100.0 * histogram[w] / solved, 100.0 * cumulative / solved))
+        if (histogram[w] == 0 && max > o.playouts) continue
+        println("$unit %3d/%d: %5d  (%5.1f%%, cumulative %5.1f%%)".format(w, max, histogram[w], 100.0 * histogram[w] / solved, 100.0 * cumulative / solved))
     }
 }
 

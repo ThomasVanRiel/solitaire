@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 
 /**
  * Run with: ./gradlew :engine:test -Pbench --tests '*SolverBenchmark' [-PbenchSeeds=1000] [-PbenchNodes=2000000]
+ *   [-PbenchRules=DRAW_1_UNLIMITED,SPIDER_2_SUITS,...] (default: the two Klondike rule sets)
  * Also checks that every Solved result passes ProofVerifier.
  */
 @Tag("benchmark")
@@ -16,12 +17,13 @@ class SolverBenchmark {
     fun benchmark() {
         val seeds = System.getProperty("bench.seeds", "1000").toInt()
         val maxNodes = System.getProperty("bench.nodes", "2000000").toLong()
-        for (rs in listOf(RuleSet.DRAW_1_UNLIMITED, RuleSet.DRAW_3_UNLIMITED)) {
+        val rules = System.getProperty("bench.rules", "DRAW_1_UNLIMITED,DRAW_3_UNLIMITED").split(',').map { RuleSet.byName(it.trim()) }
+        for (rs in rules) {
             // Warm up the JIT so the first deals aren't unfairly slow.
-            val warm = Solver(rs, maxNodes = 50_000)
-            for (seed in 100_000L until 100_020L) warm.solve(Deals.deal(seed))
+            val warm = DealSolver.create(rs, maxNodes = 50_000)
+            for (seed in 100_000L until 100_020L) warm.solve(Deals.deal(seed, rs))
 
-            val solver = Solver(rs, maxNodes = maxNodes, timeLimitMs = 60_000)
+            val solver = DealSolver.create(rs, maxNodes = maxNodes, timeLimitMs = 60_000)
             var solved = 0; var unsolvable = 0; var unknown = 0
             val times = DoubleArray(seeds)
             val nodes = LongArray(seeds)
@@ -30,7 +32,7 @@ class SolverBenchmark {
             for (i in 0 until seeds) {
                 val seed = i.toLong()
                 val t0 = System.nanoTime()
-                val r = solver.solve(Deals.deal(seed))
+                val r = solver.solve(Deals.deal(seed, rs))
                 times[i] = (System.nanoTime() - t0) / 1e6
                 nodes[i] = r.nodes
                 when (r) {
