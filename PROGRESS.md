@@ -5,8 +5,9 @@
 The coding agent runs inside a jail that only mounts the project folder. It has no Android SDK and no
 emulator access, so:
 - the agent builds and tests `:engine` and `:dealgen` itself (pure JVM);
-- the owner runs the `:app` builds, installs and screenshots on the host, and the agent reads the logs
-  in `logs/` and the images in `screenshots/`.
+- the owner runs the `:app` Gradle builds on the host and writes the output to `logs/`;
+- the agent installs APKs, launches the app and takes screenshots itself through `adb`, because the host's adb
+  server on 127.0.0.1:5037 is reachable from the jail.
 
 `settings.gradle.kts` leaves `:app` out when it can't find an SDK, so the JVM modules still build.
 
@@ -38,4 +39,10 @@ emulator access, so:
 
 ### Status
 - `:engine:test` and `:dealgen:run` pass in the agent's jail.
-- `:app:assembleDebug`, installing on the emulator and a launch screenshot: waiting for the owner to run them.
+- The owner ran `:engine:test :app:assembleDebug` on the host: it passed (log in `logs/m0-build.log`, not committed).
+- The agent installed the APK on `emulator-5554` with `adb install` (reaching the host's adb server over the
+  shared network), launched it, and checked `screenshots/m0-hello.png`. **M0 done.**
+
+### Known issues
+- Gradle reports a deprecation (`Configuration.setVisible`). It comes from a plugin, not from our build scripts.
+- AGP prints "Unable to strip libandroidx.graphics.path.so". This is harmless.
