@@ -260,3 +260,51 @@ Every `Solved` proof verified.
   presentation), but the APK hasn't been rebuilt yet.
 - An autoplay intent sent while the app is already open is dropped by Android: use `am start -S`.
 - The clock keeps counting while the autoplay runs; harmless.
+
+## M5: Solver-powered features (cut down, agreed with the owner)
+- **Dropped** because the owner wants only New game and Undo: hints, the "still winnable?" check,
+  fresh on-device deals and the daily deal. There's no solver on the device at all, so the UI can't freeze
+  on it.
+- **Kept**: auto-complete (when everything is face up and the stock is empty, the game plays the cards up),
+  and StrictMode in debug builds.
+- StrictMode on the device found 3 main-thread disk reads at startup (about 40 ms each) from
+  `getSharedPreferences` in the `DealRepository` and `SavedGameStore` constructors. **Fixed**: the
+  preferences now open lazily, and the first access happens on `Dispatchers.IO`. Not yet re-checked on the
+  device; that needs the next owner build.
+
+## M6: Polish (cut down)
+- Suit symbols use U+FE0E (text presentation), so ♥ ♦ no longer show as colour emoji.
+- **Landscape and tablets**: card size is limited by height as well as width, and the board is centred.
+  Checked in `screenshots/m6-landscape.png`; the game carried through the rotation.
+- **Dark mode**: a darker felt and Material dark colours (`screenshots/m6-dark.png`, `m6-dark-dialog.png`).
+- **App icon**: an original adaptive vector icon (card back behind a heart card) with a monochrome layer
+  for themed icons.
+- **About**: instead of a separate screen, the New game dialog explains the guarantee in plain words:
+  every deal has a checked winning sequence, you can't see face-down cards, so you may get stuck and
+  should use Undo.
+- **Accessibility**: the board has a screen-reader description. Full TalkBack move-by-move control, stats,
+  settings, animations, haptics, a 4-colour deck and left-handed mode were dropped to keep the app simple.
+
+## M7: Release preparation
+- Release build: R8 minification and resource shrinking, plus `proguard-rules.pro` (no extra rules needed).
+  The release APK is 1.0 MB (the debug APK is 12 MB).
+- Signing:
+  - `keystore.properties` (git-ignored, created by the owner only) is used when present; otherwise the APK
+    is unsigned.
+  - `-PsignReleaseWithDebugKey` signs with the local debug key, for device testing only.
+  - **The agent created no keys.** `RELEASING.md` gives the `keytool` steps for the owner.
+- The owner built `:engine:test :app:assembleDebug :app:lint :app:assembleRelease -PsignReleaseWithDebugKey`:
+  **success**.
+- The release APK was installed on the emulator and runs (no crash after R8). The debug Auto button is
+  absent, as intended (`screenshots/m7-release.png`).
+- Docs: full README (features, how the guarantee works, layout, build, benchmark, deal packs with the
+  dealgen command, debug tools, and screenshots in `docs/screenshots/`), `CONTRIBUTING.md`, `RELEASING.md`.
+- Store listing: `fastlane/metadata/android/en-US/` holds the title, short and full description, and 4 phone
+  screenshots.
+
+### Known issues / for later
+- The StrictMode fix still needs a device re-check after the next build.
+- Only 10 deals per tier ship for now; regenerate with `--per-tier 2500` before a public release.
+- The time on the win screen can read 0:00 after the debug autoplay. Normal play counts time correctly.
+- Undo still works through the win overlay. Harmless, arguably useful.
+- No GitHub remote yet. Add a source-code link to the store text once the repository is public.

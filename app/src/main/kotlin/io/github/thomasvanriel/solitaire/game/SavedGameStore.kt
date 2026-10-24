@@ -15,8 +15,9 @@ class SavedGame(
     val elapsedSeconds: Long,
 )
 
-class SavedGameStore(context: Context) {
-    private val prefs = context.getSharedPreferences("game", Context.MODE_PRIVATE)
+class SavedGameStore(private val context: Context) {
+    // Opened lazily: the first access reads from disk, and happens on a background thread.
+    private val prefs by lazy { context.getSharedPreferences("game", Context.MODE_PRIVATE) }
 
     fun save(g: SavedGame) {
         prefs.edit()

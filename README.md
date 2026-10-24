@@ -6,6 +6,14 @@ the game's own rules engine before it is dealt to you.
 
 No ads, no analytics, no accounts, and no network access (the app has no `INTERNET` permission).
 
+## Screenshots
+
+| Start | Mid-game | Won | New game (dark mode) |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/start.png" width="200" alt="A fresh deal"> | <img src="docs/screenshots/mid-game.png" width="200" alt="A game in progress"> | <img src="docs/screenshots/win.png" width="200" alt="The win screen"> | <img src="docs/screenshots/new-game-dark.png" width="200" alt="The New game dialog in dark mode"> |
+
+<img src="docs/screenshots/landscape.png" width="620" alt="The board in landscape">
+
 ## Features
 
 - Klondike with draw 1 or draw 3, unlimited passes through the stock.

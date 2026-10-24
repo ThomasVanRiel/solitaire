@@ -22,7 +22,8 @@ class ServedDeal(
  * ProofVerifier) right before it is served. A deal whose proof fails is skipped, never served.
  */
 class DealRepository(private val context: Context) {
-    private val prefs = context.getSharedPreferences("deals", Context.MODE_PRIVATE)
+    // Opened lazily: the first access reads from disk, and happens on a background thread.
+    private val prefs by lazy { context.getSharedPreferences("deals", Context.MODE_PRIVATE) }
     private val packs = HashMap<String, DealPack>()
 
     @Synchronized
