@@ -50,6 +50,13 @@ class DealRepository(private val context: Context) {
         error("No deal in ${DealPack.fileName(ruleSet, tier)} passed verification")
     }
 
+    /**
+     * A deal named by a deal code: looked up in every tier's pack for [ruleSet], served only if its proof
+     * replays. Null if this version's packs don't have it. Call off the main thread.
+     */
+    fun findInAnyTier(seed: Long, ruleSet: RuleSet): ServedDeal? =
+        Tier.entries.firstNotNullOfOrNull { tier -> find(seed, ruleSet, tier) }
+
     /** The verified solution of a deal from the packs, or null. Used to resume a saved game. */
     fun find(seed: Long, ruleSet: RuleSet, tier: Tier): ServedDeal? {
         val pack = pack(ruleSet, tier)

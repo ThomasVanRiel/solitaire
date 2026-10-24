@@ -9,6 +9,7 @@ import io.github.thomasvanriel.solitaire.engine.model.GameState
 import io.github.thomasvanriel.solitaire.engine.model.GameType
 import io.github.thomasvanriel.solitaire.engine.model.Move
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
+import io.github.thomasvanriel.solitaire.engine.pack.DealCode
 import io.github.thomasvanriel.solitaire.engine.rules.Game
 import io.github.thomasvanriel.solitaire.engine.rules.Rules
 import io.github.thomasvanriel.solitaire.engine.shuffle.Deals
@@ -120,20 +121,46 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun newGame(ruleSet: RuleSet, tier: Tier) {
+        abandonCurrent()
+        store.lastRuleSet = ruleSet
+        store.lastTier = tier
+        viewModelScope.launch { startNewGame(ruleSet, tier) }
+    }
+
+    /**
+     * Plays the deal named by a deal code. It must be in this version's packs (so its proof can be replayed
+     * first); otherwise the current game carries on and a notice says why.
+     */
+    fun playDeal(ruleSet: RuleSet, seed: Long) {
+        viewModelScope.launch {
+            val deal = withContext(Dispatchers.IO) { deals.findInAnyTier(seed, ruleSet) }
+            if (deal == null) {
+                showNotice("Deal ${DealCode.format(ruleSet, seed)} isn't in this version of the app")
+                return@launch
+            }
+            abandonCurrent()
+            store.lastRuleSet = ruleSet
+            store.lastTier = deal.tier
+            start(deal)
+        }
+    }
+
+    /** Leaving a game that was played but not won counts as a loss (and ends the streak). */
+    private fun abandonCurrent() {
         val s = _state.value
         if (s.counted && !s.won && !s.assisted) {
             statsStore.recordLoss(s.ruleSet)
             refreshStats()
         }
-        store.lastRuleSet = ruleSet
-        store.lastTier = tier
         scriptJob?.cancel()
-        viewModelScope.launch { startNewGame(ruleSet, tier) }
     }
 
     private suspend fun startNewGame(ruleSet: RuleSet, tier: Tier) {
         _state.update { it.copy(loading = true) }
-        val deal = withContext(Dispatchers.IO) { deals.next(ruleSet, tier) }
+        start(withContext(Dispatchers.IO) { deals.next(ruleSet, tier) })
+    }
+
+    private fun start(deal: ServedDeal) {
         solution = deal.solution
         val game = Game.start(Deals.deal(deal.seed, deal.ruleSet, deal.shuffleVersion), deal.ruleSet)
         _state.value = GameUiState(game, deal.seed, deal.ruleSet, deal.tier, 0, loading = false)

@@ -1,11 +1,15 @@
 package io.github.thomasvanriel.solitaire.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +26,7 @@ import io.github.thomasvanriel.solitaire.engine.model.Card
 import io.github.thomasvanriel.solitaire.engine.model.GameState
 import io.github.thomasvanriel.solitaire.engine.model.GameType
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
+import io.github.thomasvanriel.solitaire.engine.rules.Game
 import io.github.thomasvanriel.solitaire.game.Source
 import io.github.thomasvanriel.solitaire.game.Target
 
@@ -30,30 +35,73 @@ private class DragState(val source: Source, val cards: List<Int>, val origin: Of
     var delta by mutableStateOf(Offset.Zero)
 }
 
+/**
+ * The board. Moves played forward are animated: the moved cards slide from their old place to their new
+ * one, one move after another (a Spider move and the run it completes are two steps). Undo, Restart and
+ * a new deal change the board straight away. [animationMillis] is the length of one ordinary move.
+ */
 @Composable
 fun Board(
-    state: GameState,
-    ruleSet: RuleSet,
+    game: Game,
     enabled: Boolean,
     onStock: () -> Unit,
     onTap: (Source) -> Unit,
-    onDrop: (Source, Target) -> Unit,
+    onDrop: (Source, Target) -> Boolean,
     legalTargets: (Source) -> List<Target>,
     seed: Long,
+    animationMillis: Int,
     modifier: Modifier = Modifier,
 ) {
+    val ruleSet = game.ruleSet
     val measurer = rememberTextMeasurer(cacheSize = 128)
     val painter = remember(measurer) { CardPainter(measurer) }
     var drag by remember { mutableStateOf<DragState?>(null) }
+
+    // Animation: the game last shown, the step being animated, its progress, and where a drop let go.
+    var shownGame by remember { mutableStateOf<Game?>(null) }
+    var animation by remember { mutableStateOf<MoveAnimation?>(null) }
+    val progress = remember { Animatable(1f) }
+    var dropAt by remember { mutableStateOf<Offset?>(null) }
 
     BoxWithConstraints(modifier) {
         val density = LocalDensity.current
         val widthPx = with(density) { maxWidth.toPx() }
         val heightPx = with(density) { maxHeight.toPx() }
-        val layout = BoardLayout(widthPx, heightPx, state, ruleSet)
 
-        val currentLayout by rememberUpdatedState(layout)
-        val currentState by rememberUpdatedState(state)
+        LaunchedEffect(game) {
+            val prev = shownGame
+            shownGame = game
+            val drop = dropAt
+            dropAt = null
+            val from = prev?.moves?.size ?: 0
+            val to = game.moves.size
+            // Only animate a few moves played forward from what was on screen.
+            val forward = prev != null && prev.initial === game.initial && to > from && to - from <= 4 &&
+                game.moves.subList(0, from) == prev.moves
+            if (!forward) {
+                animation = null
+                return@LaunchedEffect
+            }
+            for (i in from until to) {
+                val step = MoveAnimation.of(
+                    game.stateAt(i), game.stateAt(i + 1), game.moves[i], ruleSet, widthPx, heightPx,
+                    dropAt = if (i == from) drop else null, baseMs = animationMillis,
+                ) ?: continue
+                animation = step
+                progress.snapTo(0f)
+                progress.animateTo(1f, tween(step.durationMs, easing = LinearEasing))
+            }
+            animation = null
+        }
+
+        val anim = animation
+        val state = anim?.after ?: game.state
+        val layout = BoardLayout(widthPx, heightPx, state, ruleSet)
+        // Taps and drags always work on the real (final) position.
+        val inputLayout = if (anim == null) layout else BoardLayout(widthPx, heightPx, game.state, ruleSet)
+
+        val currentLayout by rememberUpdatedState(inputLayout)
+        val currentState by rememberUpdatedState(game.state)
         val currentEnabled by rememberUpdatedState(enabled)
         val tapHandler by rememberUpdatedState(onTap)
         val stockHandler by rememberUpdatedState(onStock)
@@ -63,7 +111,7 @@ fun Board(
         Canvas(
             Modifier
                 .fillMaxSize()
-                .semantics { contentDescription = describe(state, ruleSet) }
+                .semantics { contentDescription = describe(game.state, ruleSet) }
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { p ->
                         if (!currentEnabled) return@detectTapGestures
@@ -90,7 +138,11 @@ fun Board(
                                 // Drop where the middle of the dragged card's top part is.
                                 val l = currentLayout
                                 val point = d.origin + d.delta + Offset(l.cardWidth / 2f, l.cardHeight * 0.25f)
-                                l.dropTarget(point)?.let { dropHandler(d.source, it) }
+                                val target = l.dropTarget(point)
+                                if (target != null) {
+                                    dropAt = d.origin + d.delta
+                                    if (!dropHandler(d.source, target)) dropAt = null
+                                }
                             }
                         },
                         onDragCancel = { drag = null },
@@ -104,6 +156,8 @@ fun Board(
             val l = layout
             val d = drag
             val hidden: Source? = d?.source
+            val gone = anim?.hidden
+            val t = progress.value
             drawFeltSurprise(seed, l)
             with(painter) {
                 // Stock (Spider shows one card per deal left)
@@ -115,8 +169,9 @@ fun Board(
                     for (pos in stock) drawFaceDown(pos, l.cardSize, l.corner)
                 }
 
-                // Waste (leaving out the top card while it is being dragged)
-                for ((card, pos) in l.wastePositions(hideTop = hidden == Source.Waste)) {
+                // Waste (leaving out the top card while it is being dragged, and cards still flying in)
+                val wasteHidden = (if (hidden == Source.Waste) 1 else 0) + (gone?.wasteTop ?: 0)
+                for ((card, pos) in l.wastePositions(hideCount = wasteHidden)) {
                     drawFaceUp(card, pos, l.cardSize, l.corner)
                 }
 
@@ -126,35 +181,49 @@ fun Board(
                         val r = l.foundationRect(suit)
                         val f = state.found[suit]
                         val draggingThis = hidden is Source.Foundation && hidden.suit == suit
-                        val shown = if (draggingThis) f - 1 else f
+                        val flying = gone?.foundationSuit == suit
+                        val shown = f - (if (draggingThis) 1 else 0) - (if (flying) 1 else 0)
                         if (shown > 0) drawFaceUp(Card.of(suit, shown - 1), r.topLeft, l.cardSize, l.corner)
                         else drawFoundationSlot(suit, r.topLeft, l.cardSize, l.corner)
                     }
                     // A completed run shows as its King.
                     GameType.SCORPION -> for (suit in 0 until 4) {
                         val r = l.foundationRect(suit)
-                        if (state.found[suit] > 0) drawFaceUp(Card.of(suit, Card.KING), r.topLeft, l.cardSize, l.corner)
+                        if (state.found[suit] > 0 && gone?.foundationSuit != suit) {
+                            drawFaceUp(Card.of(suit, Card.KING), r.topLeft, l.cardSize, l.corner)
+                        }
                         else drawFoundationSlot(suit, r.topLeft, l.cardSize, l.corner)
                     }
                     GameType.SPIDER -> {
                         var k = 0
+                        var drawn = 0
                         for (suit in 0 until 4) repeat(state.found[suit] / 13) {
-                            drawFaceUp(Card.of(suit, Card.KING), l.completedRunOffset(k++), l.cardSize, l.corner)
+                            if (k != gone?.runIndex) {
+                                drawFaceUp(Card.of(suit, Card.KING), l.completedRunOffset(k), l.cardSize, l.corner)
+                                drawn++
+                            }
+                            k++
                         }
-                        if (k == 0) drawSlot(l.completedRunOffset(0), l.cardSize, l.corner, null)
+                        if (drawn == 0) drawSlot(l.completedRunOffset(0), l.cardSize, l.corner, null)
                     }
                 }
 
                 // Columns
-                val emptyLabel = if (ruleSet.game == GameType.SPIDER) null else "K"
+                val spider = ruleSet.game == GameType.SPIDER
+                val emptyLabel = if (spider) null else "K"
                 for (c in 0 until state.columns) {
                     val size = state.tabSize[c]
-                    if (size == 0) drawSlot(l.cardOffset(c, 0), l.cardSize, l.corner, emptyLabel)
-                    val stopAt = if (hidden is Source.Column && hidden.col == c) hidden.index else size
+                    val stopAt = minOf(
+                        if (hidden is Source.Column && hidden.col == c) hidden.index else size,
+                        gone?.columnFrom?.get(c) ?: size,
+                    )
+                    if (size == 0 || stopAt == 0) drawSlot(l.cardOffset(c, 0), l.cardSize, l.corner, emptyLabel)
+                    // Spider: face-up cards under the movable run are dimmed, so breaks in a sequence stand out.
+                    val movable = if (spider) l.movableFrom(c) else 0
                     for (i in 0 until stopAt) {
                         val pos = l.cardOffset(c, i)
                         if (i < state.tabDown[c]) drawFaceDown(pos, l.cardSize, l.corner)
-                        else drawFaceUp(state.tab[c][i], pos, l.cardSize, l.corner)
+                        else drawFaceUp(state.tab[c][i], pos, l.cardSize, l.corner, dimmed = i < movable)
                     }
                 }
 
@@ -168,6 +237,11 @@ fun Board(
                     d.cards.forEachIndexed { k, card ->
                         drawFaceUp(card, d.origin + d.delta + Offset(0f, k * l.dragStep), l.cardSize, l.corner)
                     }
+                }
+
+                // Cards in flight, on top of everything.
+                if (anim != null) {
+                    for (f in anim.flights) drawFaceUp(f.card, f.at(t, anim.maxDelay), l.cardSize, l.corner)
                 }
             }
         }

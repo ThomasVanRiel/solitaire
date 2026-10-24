@@ -502,3 +502,37 @@ Every milestone in PLAN.md is done. These are waiting on the owner, roughly in t
      **about 6.4 MB in total, over the plan's 5 MB target**. Options: accept it, ship fewer 4-suit/2-suit
      Spider deals per tier, or shorten Spider solutions before storing them.
    - Set up a GitHub remote and add the source-code link to the store text.
+
+## Deal codes, animations, landscape layout, Spider breaks (2026-10-25)
+
+- **Deal codes** (`engine/pack/DealCode`): a two-letter variant prefix and the deal number, `K1`, `K3`, `S1`,
+  `S2`, `S4`, `SC` (for example `S2-17`). Case, spaces, '#' and the dash don't matter. The prefix is needed
+  because the same number is a different deal in each variant.
+  - Tap the deal info in the top bar, or **Share deal** on the win screen, for a dialog with the code,
+    **Copy code** and **Share** (the system share sheet; no INTERNET permission needed).
+  - New game has an "Or play a deal code" field. A valid code turns the button into "Play S2-17"; the
+    keyboard's Go key plays it too. The deal is looked up in every tier's pack and its proof replayed
+    before it is served (`DealRepository.findInAnyTier`), so the guarantee is unchanged. A code that isn't
+    in this version's packs shows a notice and the current game carries on.
+  - Playing a code counts in the statistics like any other game in that deal's tier.
+- **Animations** (`ui/MoveAnimation`): moved cards slide from their old place to their new one, dragged cards
+  from where the finger let go. Klondike draws, Spider deals (one card to each column in turn) and completed
+  runs (Ace first, King last) are animated too. A move and the run it completes play one after the other.
+  Undo, Restart and New game are instant. 170 ms per move, 70 ms while the app plays by itself. The win
+  screen waits 650 ms so the last cards land first.
+- **Landscape** (asked for by the owner): the foundations go down the left edge (a 2×2 grid; Spider's
+  completed runs fan downwards) and the stock down the right edge (Klondike's waste under it, fanned
+  downwards; Spider's deals fan downwards). The columns use the full height. Portrait is unchanged.
+- **Spider sequence breaks** (asked for by the owner): extra space where a column stops being a same-suit
+  run, and face-up cards under the movable run are greyed.
+- Long columns now squeeze their face-down cards and break gaps before the face-up cards.
+- The deal info in the top bar shrinks with "…" if needed, so the move counter stays on one line.
+
+Checked on the emulator after the owner's builds (both successful, no new lint findings):
+`screenshots/s2-share*.png` (dialog and share sheet), `s2-code-entry2.png` and `s2-code-played.png`
+(`k3-152` played deal #152 Draw 3 Expert), `s2-anim-1.png` (a completed run in flight),
+`s2-landscape-*.png` and `s3-landscape-spider-mid.png` (landscape Klondike with the draw-3 waste, and
+Spider), `s3-portrait-win.png` (the proof replayed through a rotation to a win; the top bar fits).
+
+Known issue: in landscape a Spider column with 15 or more face-up cards still overlaps its greyed
+(unmovable) cards tightly; the movable run stays readable.

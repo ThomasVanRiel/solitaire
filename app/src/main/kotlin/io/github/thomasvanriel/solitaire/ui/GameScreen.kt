@@ -1,11 +1,17 @@
 package io.github.thomasvanriel.solitaire.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -25,10 +31,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -36,16 +46,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.thomasvanriel.solitaire.DebugTools
 import io.github.thomasvanriel.solitaire.engine.difficulty.Tier
 import io.github.thomasvanriel.solitaire.engine.model.GameType
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
+import io.github.thomasvanriel.solitaire.engine.pack.DealCode
 import io.github.thomasvanriel.solitaire.game.GameUiState
 import io.github.thomasvanriel.solitaire.game.GameViewModel
+import kotlinx.coroutines.delay
 
 private val Felt = Color(0xFF1B5E20)
 private val FeltDark = Color(0xFF0F3D14)
@@ -55,6 +71,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
     val ui by vm.state.collectAsStateWithLifecycle()
     var showNewGame by rememberSaveable { mutableStateOf(false) }
     var showRestart by rememberSaveable { mutableStateOf(false) }
+    var showShare by rememberSaveable { mutableStateOf(false) }
     var showStats by rememberSaveable { mutableStateOf(false) }
 
     if (showStats) {
@@ -75,6 +92,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                 onRestart = { showRestart = true },
                 onUndo = vm::undo,
                 onStats = { showStats = true },
+                onShare = { showShare = true },
                 extra = { DebugTools.ExtraButtons(vm) },
             )
             val game = ui.game
@@ -82,14 +100,15 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color.White) }
             } else {
                 Board(
-                    state = game.state,
-                    ruleSet = ui.ruleSet,
+                    game = game,
                     enabled = !ui.busy && !ui.won,
                     onStock = vm::tapStock,
                     onTap = vm::tap,
                     onDrop = { source, target -> vm.drop(source, target) },
                     legalTargets = vm::legalTargets,
                     seed = ui.seed,
+                    // Shorter while the game plays moves itself (auto-finish, debug autoplay).
+                    animationMillis = if (ui.busy) 70 else 170,
                     modifier = Modifier.fillMaxSize().padding(top = 4.dp),
                 )
             }
@@ -104,8 +123,19 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                 Text(notice, color = Color.White, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
             }
         }
-        if (ui.won && !ui.busy) WinOverlay(ui, onNewGame = { showNewGame = true })
+        // Let the last cards finish sliding before the win screen covers them.
+        var winShown by remember { mutableStateOf(false) }
+        LaunchedEffect(ui.won, ui.busy) {
+            winShown = false
+            if (ui.won && !ui.busy) {
+                delay(650)
+                winShown = true
+            }
+        }
+        if (winShown && ui.won && !ui.busy) WinOverlay(ui, onNewGame = { showNewGame = true }, onShare = { showShare = true })
     }
+
+    if (showShare) ShareDialog(ui, onDismiss = { showShare = false })
 
     if (showRestart) {
         AlertDialog(
@@ -126,6 +156,10 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
         NewGameDialog(
             initialRuleSet = vm.lastRuleSet,
             initialTier = vm.lastTier,
+            onPlayCode = { rs, seed ->
+                showNewGame = false
+                vm.playDeal(rs, seed)
+            },
             onStart = { rs, tier ->
                 showNewGame = false
                 vm.newGame(rs, tier)
@@ -142,6 +176,7 @@ private fun TopBar(
     onRestart: () -> Unit,
     onUndo: () -> Unit,
     onStats: () -> Unit,
+    onShare: () -> Unit,
     extra: @Composable () -> Unit,
 ) {
     val hasMoves = (ui.game?.canUndo == true) && !ui.busy
@@ -161,24 +196,33 @@ private fun TopBar(
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onStats) { Text("Stats", color = Color.White) }
-            Text(
-                "#${ui.seed} · ${ui.ruleSet.label} · ${ui.tier.label}",
-                color = Color.White,
-                style = MaterialTheme.typography.labelLarge,
-            )
-            Spacer(Modifier.weight(1f))
+            // Tap the deal to share its code.
+            // Tap the deal to share its code. It gets the space left over, and is cut short if it must be.
+            Box(Modifier.weight(1f)) {
+                TextButton(onClick = onShare, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    Text(
+                        "#${ui.seed} · ${ui.ruleSet.label} · ${ui.tier.label}",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
             extra()
             Text(
                 "${ui.moveCount} moves · ${formatTime(ui.elapsedSeconds)}",
                 color = Color.White.copy(alpha = 0.85f),
                 style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                softWrap = false,
             )
         }
     }
 }
 
 @Composable
-private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit) {
+private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit, onShare: () -> Unit) {
     Box(
         Modifier.fillMaxSize().background(Color(0x99000000)),
         contentAlignment = Alignment.Center,
@@ -203,7 +247,10 @@ private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit) {
                     Text(news.joinToString(" · "), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = onNewGame) { Text("New game") }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = onShare) { Text("Share deal") }
+                    Button(onClick = onNewGame) { Text("New game") }
+                }
             }
         }
     }
@@ -214,11 +261,14 @@ private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit) {
 private fun NewGameDialog(
     initialRuleSet: RuleSet,
     initialTier: Tier,
+    onPlayCode: (RuleSet, Long) -> Unit,
     onStart: (RuleSet, Tier) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var ruleSet by rememberSaveable { mutableStateOf(initialRuleSet.id) }
     var tier by rememberSaveable { mutableStateOf(initialTier.id) }
+    var code by rememberSaveable { mutableStateOf("") }
+    val parsed = DealCode.parse(code)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("New game") },
@@ -241,13 +291,78 @@ private fun NewGameDialog(
                         FilterChip(selected = tier == t.id, onClick = { tier = t.id }, label = { Text(t.label) })
                     }
                 }
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it.take(24) },
+                    label = { Text("Or play a deal code") },
+                    placeholder = { Text("e.g. S2-17") },
+                    singleLine = true,
+                    isError = code.isNotBlank() && parsed == null,
+                    supportingText = {
+                        Text(
+                            when {
+                                code.isBlank() -> "Someone shared a deal? Type its code here."
+                                parsed == null -> "Not a deal code. Codes look like K1-100 or SC-6."
+                                else -> "${parsed.first.label}, deal #${parsed.second}"
+                            },
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Go),
+                    // The keyboard's Go key plays a valid code, since the keyboard can cover the buttons.
+                    keyboardActions = KeyboardActions(onGo = { parsed?.let { onPlayCode(it.first, it.second) } }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         },
         confirmButton = {
-            Button(onClick = { onStart(RuleSet.byId(ruleSet), Tier.byId(tier)) }) { Text("Deal") }
+            if (parsed != null) {
+                Button(onClick = { onPlayCode(parsed.first, parsed.second) }) { Text("Play ${DealCode.format(parsed.first, parsed.second)}") }
+            } else {
+                Button(onClick = { onStart(RuleSet.byId(ruleSet), Tier.byId(tier)) }, enabled = code.isBlank()) { Text("Deal") }
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+/** Shows the current deal's code, to copy or send with the system share sheet. */
+@Composable
+private fun ShareDialog(ui: GameUiState, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val code = DealCode.format(ui.ruleSet, ui.seed)
+    val message = "Can you win Solitaire deal $code (${ui.ruleSet.label}, ${ui.tier.label})? " +
+        "Type the code in New game to play it."
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Share this deal") },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text(code, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "${ui.ruleSet.label} · ${ui.tier.label}. Anyone with this app can type the code in New game " +
+                        "to play exactly this deal.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, message)
+                context.startActivity(Intent.createChooser(send, "Share deal $code"))
+                onDismiss()
+            }) { Text("Share") }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                context.getSystemService(ClipboardManager::class.java)
+                    ?.setPrimaryClip(ClipData.newPlainText("Deal code", code))
+                onDismiss()
+            }) { Text("Copy code") }
         },
     )
 }

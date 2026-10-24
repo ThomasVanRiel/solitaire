@@ -34,7 +34,15 @@ No ads, no analytics, no accounts, and no network access (the app has no `INTERN
 - Statistics per game variant and difficulty: games played and won, win rate, streaks, fastest win, fewest
   moves, and wins without undo. They stay on your phone.
 - The stock sits on the right, under your thumb; the foundations are on the left.
-- Tap a card to send it to the best place, or drag it; legal targets light up while you drag.
+- Tap a card to send it to the best place, or drag it; legal targets light up while you drag. Cards slide
+  to their new place.
+- In Spider, cards that can't move from where they are (under a break in the sequence) are greyed, and
+  there is a little extra space at every break.
+- **Deal codes**: tap the deal info at the top (or *Share deal* on the win screen) to see a short code such
+  as `S2-17`, and copy it or send it with the share sheet. Type a code in *New game* to play that exact
+  deal. Codes are a two-letter variant (`K1`, `K3`, `S1`, `S2`, `S4`, `SC`) and the deal number; only deals
+  in the app's packs can be played.
+- In landscape the foundations sit down the left edge and the stock down the right, beside the columns.
 - When every card is face up, the game finishes itself.
 - Your game is saved after every move, and survives the app being closed or killed.
 - Cards are drawn in code: no image assets.

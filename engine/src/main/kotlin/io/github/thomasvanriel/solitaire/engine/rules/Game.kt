@@ -18,6 +18,9 @@ class Game private constructor(
     val isWon: Boolean get() = Rules.isWon(state)
     val canUndo: Boolean get() = moves.isNotEmpty()
 
+    /** The position after the first [moveCount] moves (0 is the start). */
+    fun stateAt(moveCount: Int): GameState = states[moveCount]
+
     fun legalMoves(): List<Move> = Rules.legalMoves(state, ruleSet)
     fun isLegal(move: Move): Boolean = Rules.isLegal(state, ruleSet, move)
 
