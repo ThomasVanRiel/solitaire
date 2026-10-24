@@ -541,3 +541,14 @@ Spider), `s3-portrait-win.png` (the proof replayed through a rotation to a win; 
 
 Known issue: in landscape a Spider column with 15 or more face-up cards is still tight; the top run
 stays readable.
+
+## README and store screenshots refreshed (2026-10-25)
+- New debug-only **screenshot mode**: `--ez hideDebugUi true` hides the Auto button, `--ei stopAt N` stops
+  the autoplay after N moves. Documented in the README; not in release builds.
+- `docs/screenshots/`: `klondike.png` (K1-6 at move 70), `spider.png` (S2-1 at move 140, two runs done),
+  `scorpion.png` (SC-6 at move 24), `win.png`, `new-game-dark.png`, `share.png` and `landscape.png`
+  (K1-6 at move 70). The old `start.png` and `mid-game.png` are gone. The store screenshots
+  (`fastlane/.../phoneScreenshots/1-6.png`) are the six portrait ones in the same order.
+- README: new screenshot tables, Features regrouped (games / playing / sharing and statistics), auto-finish
+  noted as Klondike only, pack sizes and generation times updated for all six variants.
+- Win screen times read 0:00 in the screenshots because the debug autoplay restarts the clock (known issue).

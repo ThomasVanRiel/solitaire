@@ -15,37 +15,48 @@ No ads, no analytics, no accounts, and no network access (the app has no `INTERN
 
 ## Screenshots
 
-| Start | Mid-game | Won | New game (dark mode) |
-|:---:|:---:|:---:|:---:|
-| <img src="docs/screenshots/start.png" width="200" alt="A fresh deal"> | <img src="docs/screenshots/mid-game.png" width="200" alt="A game in progress"> | <img src="docs/screenshots/win.png" width="200" alt="The win screen"> | <img src="docs/screenshots/new-game-dark.png" width="200" alt="The New game dialog in dark mode"> |
+| Klondike | Spider (2 suits) | Scorpion II |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/klondike.png" width="240" alt="Klondike draw 1, mid-game"> | <img src="docs/screenshots/spider.png" width="240" alt="Spider with two suits, two runs completed; small gaps mark where same-suit sequences break"> | <img src="docs/screenshots/scorpion.png" width="240" alt="Scorpion II mid-game, with long same-suit runs"> |
 
-<img src="docs/screenshots/landscape.png" width="620" alt="The board in landscape">
+| Won | New game (dark mode) | Share a deal |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/win.png" width="240" alt="The win screen with Share deal and New game"> | <img src="docs/screenshots/new-game-dark.png" width="240" alt="The New game dialog in dark mode: game, suits, difficulty and a deal code field"> | <img src="docs/screenshots/share.png" width="240" alt="The share dialog showing deal code SC-6"> |
+
+<img src="docs/screenshots/landscape.png" width="740" alt="Klondike in landscape: foundations on the left, the stock and waste on the right">
 
 ## Features
 
-- **Klondike** with draw 1 or draw 3, unlimited passes through the stock.
+**Games**
+- **Klondike** with draw 1 or draw 3, unlimited passes through the stock. When every card is face up, the
+  game finishes itself.
 - **Spider** with 1, 2 or 4 suits (two decks, ten columns). Only runs of one suit move together; a
   complete King-to-Ace run of one suit is taken off automatically. A deal needs every column filled.
 - **Scorpion II**: one deck, seven columns, build down in suit. Any face-up card moves together with
   everything on top of it, only Kings fill empty columns, and the three reserve cards are dealt once.
   Complete runs are taken off automatically.
 - Four difficulty levels per game: Easy, Medium, Hard and Expert.
-- Unlimited undo, and a Restart button to replay the same deal from the start.
-- Statistics per game variant and difficulty: games played and won, win rate, streaks, fastest win, fewest
-  moves, and wins without undo. They stay on your phone.
-- The stock sits on the right, under your thumb; the foundations are on the left.
+
+**Playing**
 - Tap a card to send it to the best place, or drag it; legal targets light up while you drag. Cards slide
   to their new place.
+- Unlimited undo, and a Restart button to replay the same deal from the start.
 - In Spider and Scorpion II there is a little extra space wherever a same-suit sequence breaks, so valid
   sequences sit together.
+- The stock sits on the right, under your thumb; the foundations are on the left. In landscape they move
+  beside the columns: foundations down the left edge, the stock down the right.
+- Your game is saved after every move, and survives the app being closed or killed.
+
+**Sharing and statistics**
 - **Deal codes**: tap the deal info at the top (or *Share deal* on the win screen) to see a short code such
   as `S2-17`, and copy it or send it with the share sheet. Type a code in *New game* to play that exact
   deal. Codes are a two-letter variant (`K1`, `K3`, `S1`, `S2`, `S4`, `SC`) and the deal number; only deals
-  in the app's packs can be played.
-- In landscape the foundations sit down the left edge and the stock down the right, beside the columns.
-- When every card is face up, the game finishes itself.
-- Your game is saved after every move, and survives the app being closed or killed.
-- Cards are drawn in code: no image assets.
+  in the app's packs can be played. Sharing uses Android's share sheet, so the app still needs no network
+  access.
+- Statistics per game variant and difficulty: games played and won, win rate, streaks, fastest win, fewest
+  moves, and wins without undo. They stay on your phone.
+
+Cards are drawn in code: no image assets.
 
 ## How the guarantee works
 
@@ -94,8 +105,9 @@ Requirements: JDK 17 or newer, and the Android SDK (only for the app module).
 ```
 
 The packs currently shipped hold 100 deals per difficulty per game variant (`--per-tier 100`).
-`--per-tier 2500` takes about an hour on 7 threads and adds about 1.7 MB to the app. All options are
-listed under [Deal packs](#deal-packs).
+`--per-tier 2500` would take several hours on 8 threads (4-suit Spider and Scorpion II are the slow ones,
+because few of their deals are solved) and the packs would grow to about 6.4 MB in total (see "Open
+decisions" in `PROGRESS.md`). All options are listed under [Deal packs](#deal-packs).
 
 If no Android SDK is found (`ANDROID_HOME`, or `sdk.dir` in `local.properties`), the `:app` module is
 skipped so that the engine and deal generator can still be built and tested.
@@ -142,7 +154,8 @@ tool makes them:
 
 The output is deterministic for the same options. Each solution is stored as one byte per move: the move's
 index in the rules engine's legal-move list (an index of 255 or more, which only Spider can reach, takes
-three bytes). That comes to about 85 bytes per Klondike deal after gzip.
+three bytes). After gzip that comes to about 85 bytes per Klondike deal, 20 for Scorpion II, and 90–250 for
+Spider (longer solutions).
 
 ## Debug tools
 
@@ -151,6 +164,14 @@ real UI. It can also be started from adb:
 
 ```sh
 adb shell am start -S -n io.github.thomasvanriel.solitaire/.MainActivity --ez autoplay true
+```
+
+For screenshots, `--ez hideDebugUi true` hides the Auto button and `--ei stopAt N` stops the replay after
+N moves, so a mid-game position can be captured:
+
+```sh
+adb shell am start -S -n io.github.thomasvanriel.solitaire/.MainActivity \
+    --ez autoplay true --ei stopAt 60 --ez hideDebugUi true
 ```
 
 These tools live in the `debug` source set and are not in release builds.
