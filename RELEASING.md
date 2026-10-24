@@ -9,6 +9,7 @@ example in a password manager, plus an offline backup). If you lose the key you 
 Google Play (unless you use Play App Signing) or F-Droid reproducible builds.
 
 ```sh
+mkdir -p ~/keys && chmod 700 ~/keys     # keytool does not create the folder
 keytool -genkeypair -v \
   -keystore ~/keys/solitaire-release.jks \
   -alias solitaire \
