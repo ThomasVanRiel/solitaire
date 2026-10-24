@@ -215,3 +215,48 @@ Every `Solved` proof verified.
 
 ### Tests
 43 engine tests, 0 failures, including the replay of every shipped proof.
+
+## M4: Playable app
+
+### What was built (`app/`)
+- **One screen.** The top bar has **New game** and **Undo** (the owner asked for only these two), plus deal
+  number, draw mode, tier, moves and time. New game opens a small dialog: draw 1 or 3, and a difficulty.
+- **Board** (`ui/BoardLayout`, `ui/Board`, `ui/CardPainter`): one Compose Canvas.
+  - Top row: stock, waste (fanned three wide for draw-3) and four foundations. Below: seven columns whose
+    fan spacing shrinks so a long column fits.
+  - Cards are drawn with shapes and system-font text; there are no images.
+- **Input**:
+  - Tap the stock to draw or recycle.
+  - Tap a card or run to send it to the best place: foundation first, then non-empty columns, then an empty
+    column for a King. A King already at the bottom of a column never moves to another empty column.
+  - Drag and drop, with legal targets highlighted in yellow while dragging.
+- **Auto-finish**: when the stock and waste are empty and every card is face up, the rest is played up
+  automatically.
+- **Win screen** with deal, moves and time, and a New game button.
+- **`GameViewModel`**: `StateFlow<GameUiState>`. Moves go through the engine's `Game`/`Rules`, the same code
+  the solver uses.
+- **`DealRepository`**: serves pack deals in order per (rule set, tier). It **replays every proof with
+  `ProofVerifier` right before serving**; a deal that fails is skipped.
+- **`SavedGameStore`** (SharedPreferences): seed, rule set, tier, move list (2 bytes per move) and time,
+  saved after every move. On launch the game is rebuilt by replaying the moves.
+- **Debug-only tools** (`app/src/debug/.../DebugTools.kt`): StrictMode (log), an "Auto" button, and
+  `adb shell am start -S -n io.github.thomasvanriel.solitaire/.MainActivity --ez autoplay true`. These
+  replay the deal's stored solution in the real UI. The `release` source set has an empty `DebugTools`, so
+  none of this is in release builds.
+- A screen-reader description of the board (stock size, waste top, each column's top card and hidden count).
+
+### Checked on the emulator (owner built with `:app:assembleDebug :app:lint`: success, first try)
+- `screenshots/m4-start.png`: start position, deal #5 Draw 1 Medium.
+- `screenshots/m4-middle.png`: autoplay in progress (99 moves).
+- `screenshots/m4-win.png`: the stored proof played to a win in the real UI, 198 moves, win screen shown.
+- `screenshots/m4-newgame-dialog.png`: the New game dialog.
+- `screenshots/m4-before-kill.png` and `m4-after-kill.png`: deal #11 Draw 3 Expert after 4 moves, then
+  HOME and `adb shell am kill`. The process was gone (cold start), and the identical position came back.
+- `screenshots/m4-tap-drag.png`: tap sent A♦ to its foundation and the card under it flipped; dragging 6♥
+  from the waste onto 7♣ worked.
+
+### Known issues
+- Suit symbols rendered as colour emoji (♥ ♦). Fixed in the source by appending U+FE0E (text
+  presentation), but the APK hasn't been rebuilt yet.
+- An autoplay intent sent while the app is already open is dropped by Android: use `am start -S`.
+- The clock keeps counting while the autoplay runs; harmless.

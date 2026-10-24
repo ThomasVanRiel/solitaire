@@ -19,7 +19,8 @@ import kotlinx.coroutines.launch
  *
  * - StrictMode, logging disk/network access on the main thread.
  * - "Auto" button and an intent extra that replay the deal's stored solution in the real UI:
- *   adb shell am start -n io.github.thomasvanriel.solitaire/.MainActivity --ez autoplay true [--el stepMs 60]
+ *   adb shell am start -S -n io.github.thomasvanriel.solitaire/.MainActivity --ez autoplay true [--el stepMs 60]
+ *   (-S force-stops first: if the app is already open, Android only brings it to the front and drops the extras.)
  */
 object DebugTools {
     fun install() {

@@ -16,7 +16,14 @@ Requirements: JDK 17 or newer, and the Android SDK (only for the app module).
 ./gradlew :engine:test          # engine tests, no device needed
 ./gradlew :app:assembleDebug    # build the debug APK
 ./gradlew :app:installDebug     # install on a connected device or emulator
+
+# Generate the deal packs the app ships (solve, verify and rate deals):
+./gradlew :dealgen:run --args="--per-tier 2500"
 ```
+
+The packs currently shipped were made with `--per-tier 10` (10 deals per difficulty per draw mode).
+`--per-tier 2500` takes about an hour on 7 threads and adds about 1.7 MB to the app. All options are
+listed under [Deal packs](#deal-packs).
 
 If no Android SDK is found (`ANDROID_HOME`, or `sdk.dir` in `local.properties`), the `:app` module is
 skipped so that the engine and deal generator can still be built and tested.

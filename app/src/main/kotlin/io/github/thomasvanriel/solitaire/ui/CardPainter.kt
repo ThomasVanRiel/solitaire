@@ -24,7 +24,8 @@ class CardPainter(private val measurer: TextMeasurer) {
     private val slotColor = Color(0x55FFFFFF)
     private val highlightColor = Color(0xFFFFD54F)
 
-    private val symbols = arrayOf("♣", "♦", "♥", "♠")
+    // U+FE0E asks for the plain text glyph, not a colour emoji.
+    private val symbols = arrayOf("♣\uFE0E", "♦\uFE0E", "♥\uFE0E", "♠\uFE0E")
     private val ranks = arrayOf("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 
     fun DrawScope.drawFaceUp(card: Int, topLeft: Offset, size: Size, corner: Float) {
