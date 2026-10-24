@@ -1,7 +1,13 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// Release signing is set up by the owner only (see RELEASING.md). keystore.properties is git-ignored.
+val keystoreFile = rootProject.file("keystore.properties")
+val keystore = Properties().apply { if (keystoreFile.isFile) keystoreFile.inputStream().use { load(it) } }
 
 android {
     namespace = "io.github.thomasvanriel.solitaire"
@@ -15,9 +21,28 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (keystoreFile.isFile) {
+            create("release") {
+                storeFile = rootProject.file(keystore.getProperty("storeFile"))
+                storePassword = keystore.getProperty("storePassword")
+                keyAlias = keystore.getProperty("keyAlias")
+                keyPassword = keystore.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = when {
+                keystoreFile.isFile -> signingConfigs.getByName("release")
+                // For testing a release build on your own device only: ./gradlew assembleRelease -PsignReleaseWithDebugKey
+                providers.gradleProperty("signReleaseWithDebugKey").isPresent -> signingConfigs.getByName("debug")
+                else -> null // unsigned APK
+            }
         }
     }
 

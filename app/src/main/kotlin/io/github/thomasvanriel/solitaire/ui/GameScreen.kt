@@ -153,7 +153,12 @@ private fun NewGameDialog(
         title = { Text("New game") },
         text = {
             Column {
-                Text("Every deal can be won.", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "Every deal can be won. Each one comes with a winning sequence that the game's own " +
+                        "rules have checked. You can't see the face-down cards, so you may still get " +
+                        "stuck: use Undo and try another way.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 Spacer(Modifier.height(12.dp))
                 Text("Draw", style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

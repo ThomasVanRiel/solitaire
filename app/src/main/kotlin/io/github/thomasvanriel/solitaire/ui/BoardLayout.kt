@@ -18,16 +18,21 @@ class BoardLayout(
     private val state: GameState,
     private val drawCount: Int,
 ) {
-    val gap: Float = width * 0.012f
-    val cardWidth: Float = (width - gap * 8) / 7f
-    val cardHeight: Float = cardWidth * 1.42f
+    /**
+     * Card width: as wide as seven columns allow, but small enough that the top row plus about three
+     * card heights of tableau fit (so landscape and tablets don't overflow). The board is centred.
+     */
+    val cardWidth: Float = minOf(width / (7f + 8f * GAP_RATIO), height / (ASPECT * 4.2f))
+    val gap: Float = cardWidth * GAP_RATIO
+    val cardHeight: Float = cardWidth * ASPECT
+    private val left: Float = (width - (7f * cardWidth + 8f * gap)) / 2f
     val cardSize = Size(cardWidth, cardHeight)
     val corner: Float = cardWidth * 0.09f
 
     private val topY = gap
     val tableauTop: Float = topY + cardHeight + gap * 3
 
-    fun slotX(slot: Int): Float = gap + slot * (cardWidth + gap)
+    fun slotX(slot: Int): Float = left + gap + slot * (cardWidth + gap)
 
     val stockRect: Rect get() = Rect(Offset(slotX(0), topY), cardSize)
 
@@ -133,4 +138,9 @@ class BoardLayout(
 
     /** Step between dragged cards of a run. */
     val dragStep: Float get() = upStepFull
+
+    private companion object {
+        const val GAP_RATIO = 0.09f
+        const val ASPECT = 1.42f
+    }
 }
