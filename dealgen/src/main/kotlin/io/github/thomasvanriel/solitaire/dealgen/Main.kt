@@ -108,7 +108,7 @@ private fun process(seed: Long, rs: RuleSet, o: Options): Outcome {
                 return Outcome(seed, null, null, "unencodable")
             }
             val wins = DifficultyRater.wins(start, rs, seed, o.playouts)
-            Outcome(seed, PackEntry(seed, wins, r.nodes, solution), DifficultyRater.tierFor(wins, o.playouts), "solved")
+            Outcome(seed, PackEntry(seed, wins, r.nodes, solution), DifficultyRater.tierFor(wins, o.playouts, rs), "solved")
         }
     }
 }

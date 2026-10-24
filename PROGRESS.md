@@ -165,3 +165,53 @@ Every `Solved` proof verified.
 ### Known issues
 - Solve speed is about 200k nodes/s. That's fine for offline pack generation. On-device solving was dropped
   with the simpler UI (no hints, no fresh deals), so it doesn't matter for the app.
+
+## M3: Difficulty and deal packs
+
+### What was built
+- `engine/difficulty/HeuristicPlayer`: a fair-information player. It reads only face-up tableau cards,
+  face-down *counts*, the waste top, the foundations and the stock size.
+  - Priorities: foundation moves that reveal a card, then safe foundation moves, then moves revealing
+    face-down cards (more hidden cards first), then other foundation moves, then partial runs that free a
+    foundation card, then King to an empty column, then waste to tableau, then emptying a column when a
+    King is waiting, then draw, then recycle.
+  - Randomness: score noise between close options, and a random acceptable move 15% of the time.
+  - It gives up after two full stock passes without playing anything.
+  - A test shuffles all hidden cards (face-down cards and stock order) and checks the player's choices
+    don't change.
+- `engine/difficulty/DifficultyRater`: wins out of 30 playouts. The playouts are seeded from the deal seed,
+  so ratings are deterministic.
+- `engine/pack/SolutionCodec`: each move is stored as its index in `Rules.legalMoveCodes`, one byte per move.
+  Decoding can only yield legal moves, and the result is still replayed by `ProofVerifier`.
+- `engine/pack/DealPack`: gzipped binary. Header: magic `WPAK`, format version 1, shuffle version, rule set
+  id, tier id, playouts, count. Entries: seed, wins, solver nodes, solution. `verifiedSolution(entry)`
+  decodes and replays through `ProofVerifier`. The app calls this before serving any deal.
+- `dealgen`: solves, verifies, rates and writes one pack per (rule set, tier), then reads every pack back
+  and re-verifies every proof. Seeds are processed in ordered parallel batches, so the output is
+  deterministic. `--calibrate N` prints the win histogram. The options are documented in the README.
+- `ShippedPacksTest` (part of `:engine:test`, so it runs in CI) loads all 8 shipped packs and replays every
+  proof. It also checks for duplicate seeds and the right rule set and tier.
+
+### Calibration and tier cut-offs
+- First calibration: the player was nearly deterministic, so the results were bimodal. Draw-1 deals were won
+  0/30 times 39% of the time and 30/30 times 45%; Medium and Hard were almost empty. Adding the 15% random
+  moves and wider noise spread them out.
+- Second calibration, 1,000 winnable deals per rule set: draw-1 0/30 = 16%, draw-3 0/30 = 44%. The two
+  distributions differ a lot, so **the cut-offs are per rule set** (wins out of 30):
+
+| Rule set | Expert | Hard | Medium | Easy |
+|---|---|---|---|---|
+| Draw 1 | 0 (16%) | 1–6 (~17%) | 7–20 (~24%) | 21–30 (~43%) |
+| Draw 3 | 0 (44%) | 1–3 (~23%) | 4–11 (~20%) | 12–30 (~13%) |
+
+### Packs shipped
+- **Owner's decision: only 10 deals per tier per rule set for the first run** (80 deals in total).
+  `./gradlew :dealgen:run --args="--per-tier 10"` took about 10 s.
+- Pack files are about 0.7–0.9 KiB each, about 85 bytes per deal gzipped. Average solutions: draw-1 178–208
+  moves, draw-3 138–154 moves (harder tiers have longer solutions).
+- At that rate, 2,500 per tier would be about 1.7 MB in total, well under the 5 MB target, and would take
+  about an hour on 7 threads.
+- With 10 deals per tier, `DealRepository` cycles back to the first deal after 10 games in a tier.
+
+### Tests
+43 engine tests, 0 failures, including the replay of every shipped proof.

@@ -30,20 +30,23 @@ object DifficultyRater {
     }
 
     /**
-     * Tier cut-offs on the heuristic win rate, calibrated from the real distribution (see PROGRESS.md, M3).
+     * Tier cut-offs on the heuristic player's wins, scaled to 30 playouts, per rule set. They were calibrated
+     * from 1,000 winnable deals per rule set so each tier gets plenty of deals (see PROGRESS.md, M3).
      * Expert means the heuristic player never won, although the solver proved the deal winnable.
      */
-    fun tierFor(wins: Int, playouts: Int): Tier {
-        val rate = wins.toDouble() / playouts
+    fun tierFor(wins: Int, playouts: Int, ruleSet: RuleSet): Tier {
+        require(playouts > 0 && wins in 0..playouts)
+        if (wins == 0) return Tier.EXPERT
+        val (hardMax, mediumMax) = if (ruleSet.drawCount >= 3) DRAW3_CUTOFFS else DRAW1_CUTOFFS
+        val of30 = wins * 30
         return when {
-            wins == 0 -> Tier.EXPERT
-            rate < HARD_BELOW -> Tier.HARD
-            rate < MEDIUM_BELOW -> Tier.MEDIUM
+            of30 <= hardMax * playouts -> Tier.HARD
+            of30 <= mediumMax * playouts -> Tier.MEDIUM
             else -> Tier.EASY
         }
     }
 
-    // Placeholder values until calibration.
-    const val HARD_BELOW = 0.15
-    const val MEDIUM_BELOW = 0.5
+    /** (most wins out of 30 for Hard, most wins out of 30 for Medium). */
+    val DRAW1_CUTOFFS = 6 to 20
+    val DRAW3_CUTOFFS = 3 to 11
 }

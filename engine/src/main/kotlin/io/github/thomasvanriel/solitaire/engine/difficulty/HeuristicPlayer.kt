@@ -43,21 +43,28 @@ class HeuristicPlayer(
         return false
     }
 
-    /** The move this player would make, or -1 if it sees nothing worth doing. */
+    /**
+     * The move this player would make, or -1 if it sees nothing worth doing.
+     * Usually the best-scoring move (with noise between close scores), but with probability [EXPLORE] a
+     * random acceptable move: people don't always play the best move either, and it spreads the ratings.
+     */
     fun chooseMove(s: GameState): Int {
         val n = Rules.legalMoveCodes(s, ruleSet, buf)
+        var acceptable = 0
         var best = -1
         var bestScore = Int.MIN_VALUE
         for (i in 0 until n) {
             val code = buf[i]
             val score = score(s, code)
             if (score < 0) continue
-            val noisy = score * 8 + rng.nextInt(24)
+            buf[acceptable++] = code
+            val noisy = score * 8 + rng.nextInt(NOISE)
             if (noisy > bestScore) {
                 bestScore = noisy
                 best = code
             }
         }
+        if (acceptable > 1 && rng.nextInt(1000) < EXPLORE * 1000) return buf[rng.nextInt(acceptable)]
         return best
     }
 
@@ -97,6 +104,12 @@ class HeuristicPlayer(
             Move.TYPE_RECYCLE -> 8
             else -> -1
         }
+    }
+
+    private companion object {
+        /** Noise added to scores (in eighths of a point): close scores swap order, distant ones don't. */
+        const val NOISE = 8 * 12
+        const val EXPLORE = 0.15
     }
 
     private fun isSafe(s: GameState, card: Int): Boolean {

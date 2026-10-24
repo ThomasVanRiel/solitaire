@@ -59,9 +59,17 @@ class HeuristicPlayerTest {
 
     @Test
     fun tiers() {
-        assertEquals(Tier.EXPERT, DifficultyRater.tierFor(0, 30))
-        assertEquals(Tier.EASY, DifficultyRater.tierFor(30, 30))
-        val tiers = (0..30).map { DifficultyRater.tierFor(it, 30) }
-        assertEquals(tiers.sortedByDescending { it.id }, tiers, "more wins never means a harder tier")
+        for (rs in RuleSet.ALL) {
+            assertEquals(Tier.EXPERT, DifficultyRater.tierFor(0, 30, rs))
+            assertEquals(Tier.EASY, DifficultyRater.tierFor(30, 30, rs))
+            val tiers = (0..30).map { DifficultyRater.tierFor(it, 30, rs) }
+            assertEquals(tiers.sortedByDescending { it.id }, tiers, "more wins never means a harder tier")
+            assertEquals(Tier.entries.toSet(), tiers.toSet(), "every tier is reachable")
+        }
+        assertEquals(Tier.HARD, DifficultyRater.tierFor(6, 30, RuleSet.DRAW_1_UNLIMITED))
+        assertEquals(Tier.MEDIUM, DifficultyRater.tierFor(7, 30, RuleSet.DRAW_1_UNLIMITED))
+        assertEquals(Tier.MEDIUM, DifficultyRater.tierFor(11, 30, RuleSet.DRAW_3_UNLIMITED))
+        assertEquals(Tier.EASY, DifficultyRater.tierFor(12, 30, RuleSet.DRAW_3_UNLIMITED))
+        assertEquals(Tier.HARD, DifficultyRater.tierFor(1, 10, RuleSet.DRAW_3_UNLIMITED))
     }
 }
