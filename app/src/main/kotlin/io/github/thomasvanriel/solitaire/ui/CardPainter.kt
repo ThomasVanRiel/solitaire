@@ -16,7 +16,6 @@ import io.github.thomasvanriel.solitaire.engine.model.Card
 /** Draws cards with plain shapes and system-font text. No images. */
 class CardPainter(private val measurer: TextMeasurer) {
     private val faceColor = Color(0xFFFDFDF8)
-    private val dimmedFaceColor = Color(0xFFD9D9D2)
     private val edgeColor = Color(0xFF9E9E9E)
     private val red = Color(0xFFC62828)
     private val black = Color(0xFF212121)
@@ -27,9 +26,8 @@ class CardPainter(private val measurer: TextMeasurer) {
 
     private val ranks = arrayOf("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 
-    /** A face-up card. [dimmed] greys it a little (Spider: a card that can't be moved from where it is). */
-    fun DrawScope.drawFaceUp(card: Int, topLeft: Offset, size: Size, corner: Float, dimmed: Boolean = false) {
-        drawRoundRect(if (dimmed) dimmedFaceColor else faceColor, topLeft, size, CornerRadius(corner))
+    fun DrawScope.drawFaceUp(card: Int, topLeft: Offset, size: Size, corner: Float) {
+        drawRoundRect(faceColor, topLeft, size, CornerRadius(corner))
         drawRoundRect(edgeColor, topLeft, size, CornerRadius(corner), style = Stroke(width = size.width * 0.02f))
         val color = if (Card.isRed(card)) red else black
         val w = size.width

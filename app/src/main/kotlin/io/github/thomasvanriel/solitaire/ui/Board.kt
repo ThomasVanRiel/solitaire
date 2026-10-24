@@ -218,12 +218,10 @@ fun Board(
                         gone?.columnFrom?.get(c) ?: size,
                     )
                     if (size == 0 || stopAt == 0) drawSlot(l.cardOffset(c, 0), l.cardSize, l.corner, emptyLabel)
-                    // Spider: face-up cards under the movable run are dimmed, so breaks in a sequence stand out.
-                    val movable = if (spider) l.movableFrom(c) else 0
                     for (i in 0 until stopAt) {
                         val pos = l.cardOffset(c, i)
                         if (i < state.tabDown[c]) drawFaceDown(pos, l.cardSize, l.corner)
-                        else drawFaceUp(state.tab[c][i], pos, l.cardSize, l.corner, dimmed = i < movable)
+                        else drawFaceUp(state.tab[c][i], pos, l.cardSize, l.corner)
                     }
                 }
 

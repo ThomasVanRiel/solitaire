@@ -524,7 +524,8 @@ Every milestone in PLAN.md is done. These are waiting on the owner, roughly in t
   completed runs fan downwards) and the stock down the right edge (Klondike's waste under it, fanned
   downwards; Spider's deals fan downwards). The columns use the full height. Portrait is unchanged.
 - **Spider sequence breaks** (asked for by the owner): extra space where a column stops being a same-suit
-  run, and face-up cards under the movable run are greyed.
+  run. At first the face-up cards under the movable run were also greyed; the owner found that too much,
+  so it is spacing only.
 - Long columns now squeeze their face-down cards and break gaps before the face-up cards.
 - The deal info in the top bar shrinks with "…" if needed, so the move counter stays on one line.
 
@@ -534,5 +535,9 @@ Checked on the emulator after the owner's builds (both successful, no new lint f
 `s2-landscape-*.png` and `s3-landscape-spider-mid.png` (landscape Klondike with the draw-3 waste, and
 Spider), `s3-portrait-win.png` (the proof replayed through a rotation to a win; the top bar fits).
 
-Known issue: in landscape a Spider column with 15 or more face-up cards still overlaps its greyed
-(unmovable) cards tightly; the movable run stays readable.
+- **Scorpion sequences** (asked for by the owner, "subtle"): a small extra gap (7% of a card height, against
+  12% in Spider) where a same-suit descending sequence breaks. Checked in `screenshots/s4-scorpion-spacing.png`
+  and `s4-spider-spacing.png`; `s4-scorpion-code.png` shows `sc6` played from the keyboard's Go key.
+
+Known issue: in landscape a Spider column with 15 or more face-up cards is still tight; the top run
+stays readable.

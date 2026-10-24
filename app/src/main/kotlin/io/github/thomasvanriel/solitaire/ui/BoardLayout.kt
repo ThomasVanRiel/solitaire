@@ -151,22 +151,20 @@ class BoardLayout(
     private val downStepFull = cardHeight * 0.13f
     private val upStepFull = cardHeight * 0.28f
 
-    /** Spider: extra space where a column stops being a same-suit run, so the breaks stand out. */
-    private val breakStepFull = if (game == GameType.SPIDER) cardHeight * 0.12f else 0f
+    /**
+     * Extra space where a column stops being a same-suit descending run, so valid sequences sit together
+     * and breaks stand out: a bit more in Spider, subtler in Scorpion.
+     */
+    private val breakStepFull = when (game) {
+        GameType.SPIDER -> cardHeight * 0.12f
+        GameType.SCORPION -> cardHeight * 0.07f
+        GameType.KLONDIKE -> 0f
+    }
 
     /** True if face-up card [i] of column [c] doesn't continue a same-suit run from the card under it. */
     private fun breaksRun(c: Int, i: Int): Boolean {
         if (breakStepFull == 0f || i <= state.tabDown[c]) return false
         return !io.github.thomasvanriel.solitaire.engine.model.Card.followsInSuit(state.tab[c][i], state.tab[c][i - 1])
-    }
-
-    /** Spider: index of the first card of the movable same-suit run on top of column [c]. */
-    fun movableFrom(c: Int): Int {
-        val size = state.tabSize[c]
-        if (size == 0) return 0
-        var i = size - 1
-        while (i > state.tabDown[c] && !breaksRun(c, i)) i--
-        return i
     }
 
     /**
