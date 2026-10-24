@@ -4,12 +4,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import io.github.thomasvanriel.solitaire.engine.model.Card
 
 /**
  * Suit symbols drawn as shapes in a square box, so they look the same on every device and stay easy to
  * tell apart at small sizes: the spade has a pointed top, the club three round leaves.
+ * Each suit is merged into one shape before drawing, so see-through suits (empty foundations) have no seams.
  */
 fun DrawScope.drawSuit(suit: Int, topLeft: Offset, side: Float, color: Color) {
     fun p(x: Float, y: Float) = Offset(topLeft.x + x * side, topLeft.y + y * side)
@@ -31,52 +33,44 @@ fun DrawScope.drawSuit(suit: Int, topLeft: Offset, side: Float, color: Color) {
         close()
     }
 
-    when (suit) {
-        Card.HEARTS -> drawPath(
-            Path().apply {
-                move(0.5f, 0.92f)
-                curve(0.15f, 0.68f, 0.0f, 0.46f, 0.05f, 0.28f)
-                curve(0.1f, 0.08f, 0.4f, 0.04f, 0.5f, 0.27f)
-                curve(0.6f, 0.04f, 0.9f, 0.08f, 0.95f, 0.28f)
-                curve(1.0f, 0.46f, 0.85f, 0.68f, 0.5f, 0.92f)
-                close()
-            },
-            color,
-        )
-        Card.DIAMONDS -> drawPath(
+    fun union(vararg parts: Path): Path = parts.reduce { acc, p -> Path.combine(PathOperation.Union, acc, p) }
+
+    val shape: Path = when (suit) {
+        Card.HEARTS -> Path().apply {
+            move(0.5f, 0.92f)
+            curve(0.15f, 0.68f, 0.0f, 0.46f, 0.05f, 0.28f)
+            curve(0.1f, 0.08f, 0.4f, 0.04f, 0.5f, 0.27f)
+            curve(0.6f, 0.04f, 0.9f, 0.08f, 0.95f, 0.28f)
+            curve(1.0f, 0.46f, 0.85f, 0.68f, 0.5f, 0.92f)
+            close()
+        }
+        Card.DIAMONDS -> Path().apply {
+            move(0.5f, 0.02f)
+            curve(0.62f, 0.2f, 0.74f, 0.36f, 0.88f, 0.5f)
+            curve(0.74f, 0.64f, 0.62f, 0.8f, 0.5f, 0.98f)
+            curve(0.38f, 0.8f, 0.26f, 0.64f, 0.12f, 0.5f)
+            curve(0.26f, 0.36f, 0.38f, 0.2f, 0.5f, 0.02f)
+            close()
+        }
+        Card.SPADES -> union(
             Path().apply {
                 move(0.5f, 0.02f)
-                curve(0.62f, 0.2f, 0.74f, 0.36f, 0.88f, 0.5f)
-                curve(0.74f, 0.64f, 0.62f, 0.8f, 0.5f, 0.98f)
-                curve(0.38f, 0.8f, 0.26f, 0.64f, 0.12f, 0.5f)
-                curve(0.26f, 0.36f, 0.38f, 0.2f, 0.5f, 0.02f)
+                curve(0.82f, 0.26f, 1.0f, 0.44f, 0.96f, 0.6f)
+                curve(0.92f, 0.78f, 0.64f, 0.82f, 0.5f, 0.64f)
+                curve(0.36f, 0.82f, 0.08f, 0.78f, 0.04f, 0.6f)
+                curve(0.0f, 0.44f, 0.18f, 0.26f, 0.5f, 0.02f)
                 close()
             },
-            color,
+            stem(),
         )
-        Card.SPADES -> {
-            drawPath(
-                Path().apply {
-                    move(0.5f, 0.02f)
-                    curve(0.82f, 0.26f, 1.0f, 0.44f, 0.96f, 0.6f)
-                    curve(0.92f, 0.78f, 0.64f, 0.82f, 0.5f, 0.64f)
-                    curve(0.36f, 0.82f, 0.08f, 0.78f, 0.04f, 0.6f)
-                    curve(0.0f, 0.44f, 0.18f, 0.26f, 0.5f, 0.02f)
-                    close()
-                },
-                color,
-            )
-            drawPath(stem(), color)
-        }
         else -> { // clubs: three round leaves on a stem
             val r = 0.215f * side
-            for ((cx, cy) in listOf(0.5f to 0.26f, 0.26f to 0.56f, 0.74f to 0.56f)) {
-                val c = p(cx, cy)
-                drawPath(Path().apply { addOval(Rect(c, r)) }, color)
+            val leaves = listOf(0.5f to 0.26f, 0.26f to 0.56f, 0.74f to 0.56f).map { (cx, cy) ->
+                Path().apply { addOval(Rect(p(cx, cy), r)) }
             }
-            val mid = p(0.5f, 0.5f)
-            drawPath(Path().apply { addOval(Rect(mid, 0.12f * side)) }, color)
-            drawPath(stem(), color)
+            val middle = Path().apply { addOval(Rect(p(0.5f, 0.5f), 0.12f * side)) }
+            union(*(leaves + middle + stem()).toTypedArray())
         }
     }
+    drawPath(shape, color)
 }
