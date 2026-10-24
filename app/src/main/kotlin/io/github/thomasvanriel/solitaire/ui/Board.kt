@@ -37,6 +37,7 @@ fun Board(
     onTap: (Source) -> Unit,
     onDrop: (Source, Target) -> Unit,
     legalTargets: (Source) -> List<Target>,
+    seed: Long,
     modifier: Modifier = Modifier,
 ) {
     val measurer = rememberTextMeasurer(cacheSize = 128)
@@ -101,6 +102,7 @@ fun Board(
             val l = layout
             val d = drag
             val hidden: Source? = d?.source
+            drawFeltSurprise(seed, l)
             with(painter) {
                 // Stock
                 if (state.stockSize > 0) drawFaceDown(l.stockRect.topLeft, l.cardSize, l.corner)
@@ -118,7 +120,7 @@ fun Board(
                     val draggingThis = hidden is Source.Foundation && hidden.suit == suit
                     val shown = if (draggingThis) f - 1 else f
                     if (shown > 0) drawFaceUp(Card.of(suit, shown - 1), r.topLeft, l.cardSize, l.corner)
-                    else drawSlot(r.topLeft, l.cardSize, l.corner, suitSymbol(suit))
+                    else drawFoundationSlot(suit, r.topLeft, l.cardSize, l.corner)
                 }
 
                 // Columns

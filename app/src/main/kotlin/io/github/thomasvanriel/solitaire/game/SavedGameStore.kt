@@ -13,6 +13,10 @@ class SavedGame(
     val tier: Tier,
     val moves: List<Move>,
     val elapsedSeconds: Long,
+    val counted: Boolean = false,
+    val usedUndo: Boolean = false,
+    val assisted: Boolean = false,
+    val winRecorded: Boolean = false,
 )
 
 class SavedGameStore(private val context: Context) {
@@ -26,6 +30,10 @@ class SavedGameStore(private val context: Context) {
             .putInt("tier", g.tier.id)
             .putString("moves", Base64.encodeToString(Move.encodeAll(g.moves), Base64.NO_WRAP))
             .putLong("elapsed", g.elapsedSeconds)
+            .putBoolean("counted", g.counted)
+            .putBoolean("usedUndo", g.usedUndo)
+            .putBoolean("assisted", g.assisted)
+            .putBoolean("winRecorded", g.winRecorded)
             .apply()
     }
 
@@ -38,6 +46,10 @@ class SavedGameStore(private val context: Context) {
                 tier = Tier.byId(prefs.getInt("tier", Tier.MEDIUM.id)),
                 moves = Move.decodeAll(Base64.decode(prefs.getString("moves", "") ?: "", Base64.NO_WRAP)),
                 elapsedSeconds = prefs.getLong("elapsed", 0),
+                counted = prefs.getBoolean("counted", false),
+                usedUndo = prefs.getBoolean("usedUndo", false),
+                assisted = prefs.getBoolean("assisted", false),
+                winRecorded = prefs.getBoolean("winRecorded", false),
             )
         } catch (_: IllegalArgumentException) {
             null

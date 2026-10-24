@@ -304,7 +304,7 @@ Every `Solved` proof verified.
 
 ### Known issues / for later
 - The StrictMode fix still needs a device re-check after the next build.
-- Only 10 deals per tier ship for now; regenerate with `--per-tier 2500` before a public release.
+- 100 deals per tier ship now (see below); regenerate with `--per-tier 2500` before a public release.
 - The time on the win screen can read 0:00 after the debug autoplay. Normal play counts time correctly.
 - Undo still works through the win overlay. Harmless, arguably useful.
 - No GitHub remote yet. Add a source-code link to the store text once the repository is public.
@@ -318,3 +318,28 @@ Every `Solved` proof verified.
 - The top bar is now two rows (New game · Restart · Undo, then deal info and moves/time), because three
   buttons and the info don't fit in one row on a phone.
 - These are a small, explicit extension of the "only New game and Undo" scope.
+
+## Statistics, clearer suits, packs, and a felt surprise (2026-10-24)
+- **Packs**: the owner regenerated them with 100 deals per tier per rule set, 800 deals in all, about 7 KiB per
+  pack. `ShippedPacksTest` replays every proof: pass.
+- **Suits are now drawn as vector shapes** (`ui/SuitShapes.kt`) instead of font glyphs, because the owner
+  found ♠ and ♣ too alike. The spade has a pointed top and a stem; the club has three round leaves. They're
+  used for the corner symbol, the large centre symbol and the empty foundations. Red/black is unchanged;
+  the owner chose this over a four-colour deck.
+- **Statistics** (`game/StatsStore.kt`, `ui/StatsScreen.kt`), kept on the device in SharedPreferences.
+  - Per draw mode and difficulty: played, won, win rate, fastest win, fewest moves, won without undo.
+    Per draw mode: current and best streak.
+  - A game counts as played from its first move. **New game** before winning counts as a loss and ends the
+    streak. **Restart** stays the same game, but counts as using undo. Undoing after a win and winning again
+    doesn't count twice. Games played by the debug autoplay never count.
+  - The flags (counted, usedUndo, assisted, winRecorded) are saved with the game, so they survive the app
+    being killed.
+  - The **Stats** button is at the left of the second top-bar row. The screen has a Draw 1 / Draw 3 switch,
+    a summary card, a per-difficulty table, and "Reset statistics" with a confirmation.
+  - The win screen adds "Streak: N", and "New best time!" or "Fewest moves yet!" when a record falls (not on
+    the first win in a tier).
+- **Felt surprise** (`ui/FeltSurprise.kt`), at the owner's request: a tiny, very faint (10% opacity) brown
+  three-tier swirl on the felt, drawn under the cards. It appears on about 1 deal in 25, decided by a
+  SplitMix64 hash of the deal number, so it's always the same deals. It's placed in the empty bottom part of
+  the board. Among the shipped deals it's on #100 (draw 1 expert), #135 (draw 1 easy), #152 (draw 3 expert),
+  #190 and others.

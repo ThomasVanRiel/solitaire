@@ -24,8 +24,6 @@ class CardPainter(private val measurer: TextMeasurer) {
     private val slotColor = Color(0x55FFFFFF)
     private val highlightColor = Color(0xFFFFD54F)
 
-    // U+FE0E asks for the plain text glyph, not a colour emoji.
-    private val symbols = arrayOf("♣\uFE0E", "♦\uFE0E", "♥\uFE0E", "♠\uFE0E")
     private val ranks = arrayOf("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 
     fun DrawScope.drawFaceUp(card: Int, topLeft: Offset, size: Size, corner: Float) {
@@ -36,12 +34,12 @@ class CardPainter(private val measurer: TextMeasurer) {
         val cornerStyle = TextStyle(color = color, fontSize = (w * 0.30f).toSp(), fontWeight = FontWeight.Bold)
         val rankLayout = measurer.measure(ranks[Card.rank(card)], cornerStyle)
         drawText(rankLayout, topLeft = topLeft + Offset(w * 0.07f, w * 0.02f))
-        val suitSmall = measurer.measure(symbols[Card.suit(card)], cornerStyle.copy(fontSize = (w * 0.28f).toSp()))
-        drawText(suitSmall, topLeft = topLeft + Offset(w - suitSmall.size.width - w * 0.07f, w * 0.03f))
-        // Large suit in the middle of the visible part, so even a fanned card shows its suit.
-        val big = measurer.measure(symbols[Card.suit(card)], cornerStyle.copy(fontSize = (w * 0.62f).toSp(), fontWeight = FontWeight.Normal))
-        val center = topLeft + Offset((w - big.size.width) / 2f, size.height * 0.62f - big.size.height / 2f)
-        drawText(big, topLeft = center)
+        // Small suit in the top-right corner, level with the rank, so a fanned card shows both.
+        val small = w * 0.26f
+        drawSuit(Card.suit(card), topLeft + Offset(w - small - w * 0.08f, w * 0.08f), small, color)
+        // Large suit in the middle.
+        val big = w * 0.5f
+        drawSuit(Card.suit(card), topLeft + Offset((w - big) / 2f, size.height * 0.62f - big / 2f), big, color)
     }
 
     fun DrawScope.drawFaceDown(topLeft: Offset, size: Size, corner: Float) {
@@ -60,7 +58,7 @@ class CardPainter(private val measurer: TextMeasurer) {
         drawRoundRect(Color.White, topLeft, size, CornerRadius(corner), style = Stroke(width = size.width * 0.03f))
     }
 
-    /** An empty pile outline, optionally with a faint label (suit symbol, or ↻ for recycling the stock). */
+    /** An empty pile outline, optionally with a faint label ("K" for an empty column, ↻ for recycling the stock). */
     fun DrawScope.drawSlot(topLeft: Offset, size: Size, corner: Float, label: String?) {
         drawRoundRect(slotColor, topLeft, size, CornerRadius(corner), style = Stroke(width = size.width * 0.03f))
         if (label != null) {
@@ -69,9 +67,14 @@ class CardPainter(private val measurer: TextMeasurer) {
         }
     }
 
+    /** An empty foundation, showing its suit faintly. */
+    fun DrawScope.drawFoundationSlot(suit: Int, topLeft: Offset, size: Size, corner: Float) {
+        drawSlot(topLeft, size, corner, null)
+        val side = size.width * 0.5f
+        drawSuit(suit, topLeft + Offset((size.width - side) / 2f, (size.height - side) / 2f), side, slotColor)
+    }
+
     fun DrawScope.drawHighlight(topLeft: Offset, size: Size, corner: Float) {
         drawRoundRect(highlightColor, topLeft, size, CornerRadius(corner), style = Stroke(width = size.width * 0.07f))
     }
-
-    fun suitSymbol(suit: Int): String = symbols[suit]
 }

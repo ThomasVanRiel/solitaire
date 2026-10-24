@@ -19,6 +19,8 @@ No ads, no analytics, no accounts, and no network access (the app has no `INTERN
 - Klondike with draw 1 or draw 3, unlimited passes through the stock.
 - Four difficulty levels: Easy, Medium, Hard and Expert.
 - Unlimited undo, and a Restart button to replay the same deal from the start.
+- Statistics per draw mode and difficulty: games played and won, win rate, streaks, fastest win, fewest
+  moves, and wins without undo. They stay on your phone.
 - The stock sits on the right, under your thumb; the foundations are on the left.
 - Tap a card to send it to the best place, or drag it; legal targets light up while you drag.
 - When every card is face up, the game finishes itself.
@@ -69,7 +71,7 @@ Requirements: JDK 17 or newer, and the Android SDK (only for the app module).
 ./gradlew :dealgen:run --args="--per-tier 2500"
 ```
 
-The packs currently shipped were made with `--per-tier 10` (10 deals per difficulty per draw mode).
+The packs currently shipped hold 100 deals per difficulty per draw mode (`--per-tier 100`).
 `--per-tier 2500` takes about an hour on 7 threads and adds about 1.7 MB to the app. All options are
 listed under [Deal packs](#deal-packs).
 

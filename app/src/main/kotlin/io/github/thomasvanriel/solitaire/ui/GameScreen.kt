@@ -51,6 +51,13 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
     val ui by vm.state.collectAsStateWithLifecycle()
     var showNewGame by rememberSaveable { mutableStateOf(false) }
     var showRestart by rememberSaveable { mutableStateOf(false) }
+    var showStats by rememberSaveable { mutableStateOf(false) }
+
+    if (showStats) {
+        val stats by vm.stats.collectAsStateWithLifecycle()
+        StatsScreen(stats, initialRuleSet = ui.ruleSet, onReset = vm::resetStats, onClose = { showStats = false })
+        return
+    }
 
     Box(
         Modifier
@@ -63,6 +70,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                 onNewGame = { showNewGame = true },
                 onRestart = { showRestart = true },
                 onUndo = vm::undo,
+                onStats = { showStats = true },
                 extra = { DebugTools.ExtraButtons(vm) },
             )
             val game = ui.game
@@ -77,6 +85,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                     onTap = vm::tap,
                     onDrop = { source, target -> vm.drop(source, target) },
                     legalTargets = vm::legalTargets,
+                    seed = ui.seed,
                     modifier = Modifier.fillMaxSize().padding(top = 4.dp),
                 )
             }
@@ -118,6 +127,7 @@ private fun TopBar(
     onNewGame: () -> Unit,
     onRestart: () -> Unit,
     onUndo: () -> Unit,
+    onStats: () -> Unit,
     extra: @Composable () -> Unit,
 ) {
     val hasMoves = (ui.game?.canUndo == true) && !ui.busy
@@ -135,7 +145,8 @@ private fun TopBar(
                 Text("Undo", maxLines = 1)
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onStats) { Text("Stats", color = Color.White) }
             Text(
                 "#${ui.seed} · Draw ${ui.ruleSet.drawCount} · ${ui.tier.label}",
                 color = Color.White,
@@ -167,6 +178,16 @@ private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit) {
                         "${ui.moveCount} moves in ${formatTime(ui.elapsedSeconds)}",
                     textAlign = TextAlign.Center,
                 )
+                val record = ui.winRecord
+                if (record != null) {
+                    val news = buildList {
+                        add("Streak: ${record.streak}")
+                        if (record.newBestTime) add("New best time!")
+                        if (record.newFewestMoves) add("Fewest moves yet!")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(news.joinToString(" · "), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                }
                 Spacer(Modifier.height(16.dp))
                 Button(onClick = onNewGame) { Text("New game") }
             }

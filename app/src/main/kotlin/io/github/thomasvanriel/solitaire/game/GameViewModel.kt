@@ -42,6 +42,15 @@ data class GameUiState(
     val elapsedSeconds: Long = 0,
     val loading: Boolean = true,
     val busy: Boolean = false,
+    /** Counted as played in the statistics (from the first move). */
+    val counted: Boolean = false,
+    val usedUndo: Boolean = false,
+    /** Played by the debug autoplay: never counted in the statistics. */
+    val assisted: Boolean = false,
+    /** The win is already in the statistics (so undoing and winning again doesn't count twice). */
+    val winRecorded: Boolean = false,
+    /** What the win changed, for the win screen. Not saved. */
+    val winRecord: WinRecord? = null,
 ) {
     val won: Boolean get() = game?.isWon == true
     val moveCount: Int get() = game?.moves?.size ?: 0
@@ -50,6 +59,10 @@ data class GameUiState(
 class GameViewModel(app: Application) : AndroidViewModel(app) {
     private val deals = DealRepository(app)
     private val store = SavedGameStore(app)
+    private val statsStore = StatsStore(app)
+
+    private val _stats = MutableStateFlow<Map<RuleSet, ModeStats>>(emptyMap())
+    val stats: StateFlow<Map<RuleSet, ModeStats>> = _stats.asStateFlow()
 
     private val _state = MutableStateFlow(GameUiState())
     val state: StateFlow<GameUiState> = _state.asStateFlow()
@@ -78,6 +91,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun restoreOrStart() {
+        _stats.value = withContext(Dispatchers.IO) { statsStore.loadAll() }
         val saved = withContext(Dispatchers.IO) { store.load() }
         if (saved != null) {
             val restored = withContext(Dispatchers.Default) {
@@ -89,7 +103,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (restored != null) {
                 val (deal, game) = restored
                 solution = deal.solution
-                _state.value = GameUiState(game, deal.seed, deal.ruleSet, deal.tier, saved.elapsedSeconds, loading = false)
+                _state.value = GameUiState(
+                    game, deal.seed, deal.ruleSet, deal.tier, saved.elapsedSeconds, loading = false,
+                    counted = saved.counted, usedUndo = saved.usedUndo, assisted = saved.assisted,
+                    winRecorded = saved.winRecorded,
+                )
                 return
             }
         }
@@ -98,6 +116,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun newGame(ruleSet: RuleSet, tier: Tier) {
+        val s = _state.value
+        if (s.counted && !s.won && !s.assisted) {
+            statsStore.recordLoss(s.ruleSet)
+            refreshStats()
+        }
         store.lastRuleSet = ruleSet
         store.lastTier = tier
         scriptJob?.cancel()
@@ -125,6 +148,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val game = s.game ?: return false
         if (s.busy || s.won || !game.isLegal(move)) return false
         _state.value = s.copy(game = game.play(move))
+        afterMove()
         save()
         maybeFinish()
         return true
@@ -134,7 +158,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val s = _state.value
         val game = s.game ?: return
         if (s.busy || !game.canUndo) return
-        _state.value = s.copy(game = game.undo())
+        _state.value = s.copy(game = game.undo(), usedUndo = true)
         save()
     }
 
@@ -253,6 +277,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     if (!game.isLegal(move)) break
                     delay(stepMillis)
                     _state.value = s.copy(game = game.play(move))
+                    afterMove()
                     save()
                 }
             } finally {
@@ -266,13 +291,55 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         scriptJob?.cancel()
         val s = _state.value
         val game = s.game ?: return
-        _state.value = s.copy(game = game.restart(), busy = false, elapsedSeconds = 0)
+        _state.value = s.copy(
+            game = game.restart(), busy = false, elapsedSeconds = 0,
+            usedUndo = s.usedUndo || game.canUndo,
+        )
         save()
+    }
+
+    /** Marks the current game as played by the computer (debug autoplay), so it never counts in the statistics. */
+    fun markAssisted() {
+        _state.update { it.copy(assisted = true) }
+        save()
+    }
+
+    fun resetStats() {
+        statsStore.reset()
+        _stats.value = RuleSet.ALL.associateWith { ModeStats() }
+    }
+
+    private fun refreshStats() {
+        viewModelScope.launch { _stats.value = withContext(Dispatchers.IO) { statsStore.loadAll() } }
+    }
+
+    /** Updates the statistics after a move: played from the first move, and the win once. */
+    private fun afterMove() {
+        val s = _state.value
+        if (s.assisted) return
+        var next = s
+        if (!s.counted && s.moveCount > 0) {
+            statsStore.recordPlayed(s.ruleSet, s.tier)
+            next = next.copy(counted = true)
+        }
+        if (s.won && !s.winRecorded) {
+            val record = statsStore.recordWin(s.ruleSet, s.tier, s.elapsedSeconds, s.moveCount, s.usedUndo)
+            next = next.copy(winRecorded = true, winRecord = record)
+        }
+        if (next !== s) {
+            _state.value = next
+            refreshStats()
+        }
     }
 
     private fun save() {
         val s = _state.value
         val game = s.game ?: return
-        store.save(SavedGame(s.seed, s.ruleSet, s.tier, game.moves, s.elapsedSeconds))
+        store.save(
+            SavedGame(
+                s.seed, s.ruleSet, s.tier, game.moves, s.elapsedSeconds,
+                counted = s.counted, usedUndo = s.usedUndo, assisted = s.assisted, winRecorded = s.winRecorded,
+            ),
+        )
     }
 }

@@ -40,6 +40,7 @@ object DebugTools {
     /** Restarts the deal and plays its verified solution, one move at a time. */
     fun autoplay(vm: GameViewModel, stepMillis: Long) {
         vm.restart()
+        vm.markAssisted()
         val moves: Iterator<Move> = vm.solution.iterator()
         vm.runScript(stepMillis) { if (moves.hasNext()) moves.next() else null }
     }
