@@ -18,7 +18,8 @@ No ads, no analytics, no accounts, and no network access (the app has no `INTERN
 
 - Klondike with draw 1 or draw 3, unlimited passes through the stock.
 - Four difficulty levels: Easy, Medium, Hard and Expert.
-- Unlimited undo.
+- Unlimited undo, and a Restart button to replay the same deal from the start.
+- The stock sits on the right, under your thumb; the foundations are on the left.
 - Tap a card to send it to the best place, or drag it; legal targets light up while you drag.
 - When every card is face up, the game finishes itself.
 - Your game is saved after every move, and survives the app being closed or killed.

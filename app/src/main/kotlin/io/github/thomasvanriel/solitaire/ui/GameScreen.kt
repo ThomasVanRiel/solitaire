@@ -50,6 +50,7 @@ private val FeltDark = Color(0xFF0F3D14)
 fun GameScreen(vm: GameViewModel, dark: Boolean) {
     val ui by vm.state.collectAsStateWithLifecycle()
     var showNewGame by rememberSaveable { mutableStateOf(false) }
+    var showRestart by rememberSaveable { mutableStateOf(false) }
 
     Box(
         Modifier
@@ -57,7 +58,13 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
             .background(if (dark) FeltDark else Felt),
     ) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            TopBar(ui, onNewGame = { showNewGame = true }, onUndo = vm::undo, extra = { DebugTools.ExtraButtons(vm) })
+            TopBar(
+                ui,
+                onNewGame = { showNewGame = true },
+                onRestart = { showRestart = true },
+                onUndo = vm::undo,
+                extra = { DebugTools.ExtraButtons(vm) },
+            )
             val game = ui.game
             if (game == null || ui.loading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color.White) }
@@ -77,6 +84,21 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
         if (ui.won && !ui.busy) WinOverlay(ui, onNewGame = { showNewGame = true })
     }
 
+    if (showRestart) {
+        AlertDialog(
+            onDismissRequest = { showRestart = false },
+            title = { Text("Restart this deal?") },
+            text = { Text("All moves are cleared and the clock starts again. This can't be undone.") },
+            confirmButton = {
+                Button(onClick = {
+                    showRestart = false
+                    vm.restart()
+                }) { Text("Restart") }
+            },
+            dismissButton = { TextButton(onClick = { showRestart = false }) { Text("Cancel") } },
+        )
+    }
+
     if (showNewGame) {
         NewGameDialog(
             initialRuleSet = vm.lastRuleSet,
@@ -91,26 +113,40 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
 }
 
 @Composable
-private fun TopBar(ui: GameUiState, onNewGame: () -> Unit, onUndo: () -> Unit, extra: @Composable () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Button(onClick = onNewGame) { Text("New game") }
-        FilledTonalButton(onClick = onUndo, enabled = (ui.game?.canUndo == true) && !ui.busy) { Text("Undo") }
-        extra()
-        Spacer(Modifier.weight(1f))
-        Column(horizontalAlignment = Alignment.End) {
+private fun TopBar(
+    ui: GameUiState,
+    onNewGame: () -> Unit,
+    onRestart: () -> Unit,
+    onUndo: () -> Unit,
+    extra: @Composable () -> Unit,
+) {
+    val hasMoves = (ui.game?.canUndo == true) && !ui.busy
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(onClick = onNewGame, modifier = Modifier.weight(1f)) { Text("New game", maxLines = 1) }
+            FilledTonalButton(onClick = onRestart, enabled = hasMoves, modifier = Modifier.weight(1f)) {
+                Text("Restart", maxLines = 1)
+            }
+            FilledTonalButton(onClick = onUndo, enabled = hasMoves, modifier = Modifier.weight(1f)) {
+                Text("Undo", maxLines = 1)
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "#${ui.seed} · Draw ${ui.ruleSet.drawCount} · ${ui.tier.label}",
                 color = Color.White,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelLarge,
             )
+            Spacer(Modifier.weight(1f))
+            extra()
             Text(
                 "${ui.moveCount} moves · ${formatTime(ui.elapsedSeconds)}",
-                color = Color.White.copy(alpha = 0.8f),
-                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.85f),
+                style = MaterialTheme.typography.labelLarge,
             )
         }
     }

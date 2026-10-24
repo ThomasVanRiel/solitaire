@@ -8,8 +8,9 @@ import io.github.thomasvanriel.solitaire.game.Source
 import io.github.thomasvanriel.solitaire.game.Target
 
 /**
- * Where everything goes on the board, in pixels. Portrait layout:
- * top row = stock, waste (fanned for draw-3), a gap, four foundations; below that the seven columns.
+ * Where everything goes on the board, in pixels.
+ * Top row, left to right: four foundations, the waste (fanned to the left for draw-3), the stock on the far
+ * right where the right thumb is. Below that the seven columns.
  * Column fans shrink so that a long column always fits.
  */
 class BoardLayout(
@@ -34,20 +35,23 @@ class BoardLayout(
 
     fun slotX(slot: Int): Float = left + gap + slot * (cardWidth + gap)
 
-    val stockRect: Rect get() = Rect(Offset(slotX(0), topY), cardSize)
+    val stockRect: Rect get() = Rect(Offset(slotX(6), topY), cardSize)
 
     /** Foundation slot for suit [suit] (C, D, H, S from left to right). */
-    fun foundationRect(suit: Int): Rect = Rect(Offset(slotX(3 + suit), topY), cardSize)
+    fun foundationRect(suit: Int): Rect = Rect(Offset(slotX(suit), topY), cardSize)
 
     private val wasteFan: Float = cardWidth * 0.32f
 
-    /** Positions of the visible waste cards, bottom to top (up to three for draw-3, one for draw-1). */
+    /**
+     * Positions of the visible waste cards, bottom to top (up to three for draw-3, one for draw-1).
+     * The top card is always next to the stock; older cards fan out to the left.
+     */
     fun wastePositions(hideTop: Boolean = false): List<Pair<Int, Offset>> {
         val visible = if (drawCount >= 3) 3 else 1
         val wasteSize = if (hideTop) state.wasteSize - 1 else state.wasteSize
         val n = minOf(visible, wasteSize).coerceAtLeast(0)
         val first = wasteSize - n
-        return (0 until n).map { k -> state.waste[first + k] to Offset(slotX(1) + k * wasteFan, topY) }
+        return (0 until n).map { k -> state.waste[first + k] to Offset(slotX(5) - (n - 1 - k) * wasteFan, topY) }
     }
 
     fun wasteTopRect(): Rect? = wastePositions().lastOrNull()?.let { Rect(it.second, cardSize) }

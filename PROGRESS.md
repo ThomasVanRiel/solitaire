@@ -308,3 +308,13 @@ Every `Solved` proof verified.
 - The time on the win screen can read 0:00 after the debug autoplay. Normal play counts time correctly.
 - Undo still works through the win overlay. Harmless, arguably useful.
 - No GitHub remote yet. Add a source-code link to the store text once the repository is public.
+
+## Tester feedback (2026-10-24)
+- **Top row mirrored for ergonomics**: foundations in slots 1–4 on the left, the stock on the far right, and
+  the waste just left of the stock. The top waste card is always next to the stock, and draw-3 fans the older
+  cards out to the left.
+- **Restart button**, asked for by a tester. It goes back to the start of the same deal and resets the clock,
+  after a confirmation, because a restart can't be undone.
+- The top bar is now two rows (New game · Restart · Undo, then deal info and moves/time), because three
+  buttons and the info don't fit in one row on a phone.
+- These are a small, explicit extension of the "only New game and Undo" scope.

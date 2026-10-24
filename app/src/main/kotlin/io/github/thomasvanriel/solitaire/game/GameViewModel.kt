@@ -261,12 +261,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Back to the start of the current deal (used by the debug-only autoplay). */
+    /** Back to the start of the current deal, with the clock reset. Also used by the debug autoplay. */
     fun restart() {
         scriptJob?.cancel()
         val s = _state.value
         val game = s.game ?: return
-        _state.value = s.copy(game = game.restart(), busy = false)
+        _state.value = s.copy(game = game.restart(), busy = false, elapsedSeconds = 0)
         save()
     }
 
