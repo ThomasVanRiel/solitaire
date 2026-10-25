@@ -85,11 +85,14 @@ game and statistics are kept.
   your phone.
 
 **A bit of silliness**
-- A fortune-cookie line on the win screen: random (picked from the deal number, so a shared deal gets the
-  same one), or about the game you just played, a record, a streak, the time of day or a holiday.
-- A greeting in *New game* that depends on the time and the date.
+- A fortune-cookie line on the win screen (well over a hundred of them): random (picked from the deal
+  number, so a shared deal gets the same one), or about the game you just played, a record, a streak, the
+  time of day or a holiday (New Year, Valentine's, Pi day, May the 4th, midsummer, Talk Like a Pirate Day,
+  Halloween, the winter solstice, Christmas, leap day and Friday the 13th among them).
+- A greeting in *New game* that depends on the time, the day of the week, the date and how long you've
+  been away.
 - Sarcastic, slightly dark quips when you're stuck, when you leave a game unwon, and when you restart.
-- 36 achievements, from *Beginner's Luck* to *Statistically Suspicious*. A small banner pops up when you
+- 54 achievements, from *Beginner's Luck* to *Statistically Suspicious*. A small banner pops up when you
   earn one (it lets taps through and goes away by itself); *Statistics* lists them all.
 - Very rarely, after a fast or tidy win, a few cards hold up judges' scores.
 

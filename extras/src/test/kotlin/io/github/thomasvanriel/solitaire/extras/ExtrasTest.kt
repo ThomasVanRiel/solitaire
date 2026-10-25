@@ -113,15 +113,45 @@ class ExtrasTest {
         assertEquals("Hello, and welcome to the table.", g(first = true))
         assertEquals("Welcome back. The cards missed you.", g(days = 9))
         assertEquals("Spooky deals tonight.", g(now = LocalDateTime.of(2026, 10, 31, 21, 0)))
+        assertEquals("It's been a while. The cards have been practising.", g(days = 45))
+        assertEquals("May the fours be with you.", g(now = LocalDateTime.of(2026, 5, 4, 10, 0)))
         assertEquals(g(), g(now = wednesday.plusMinutes(20)))
-        assertTrue(g().contains("afternoon") || g().contains("quick one"))
-        assertTrue(g(now = LocalDateTime.of(2026, 10, 21, 2, 0)).let { "Still up" in it || "Midnight" in it })
+        assertTrue(g() in Greetings.timeOfDay(15) + Greetings.day(wednesday))
+        val night = LocalDateTime.of(2026, 10, 21, 2, 0)
+        assertTrue(g(now = night) in Greetings.timeOfDay(2) + Greetings.day(night))
+        // Over a week of hours, every time of day gets several different lines.
+        val week = (0L until 7 * 24).map { g(now = wednesday.plusHours(it)) }.toSet()
+        assertTrue(week.size > 25, "only ${week.size} different greetings")
+    }
+
+    @Test
+    fun `new holidays have their lines`() {
+        assertEquals("A leap-day win. See you in four years.", Fortunes.pick(win(now = LocalDateTime.of(2028, 2, 29, 15, 0))))
+        assertEquals("Arr! The treasure be in the foundations, matey.", Fortunes.pick(win(now = LocalDateTime.of(2026, 9, 19, 15, 0))))
+    }
+
+    @Test
+    fun `lines are unique within their lists and short enough for the screen`() {
+        val lists = buildList {
+            for (rs in RuleSet.ALL) add(Fortunes.random(win(ruleSet = rs)))
+            add(Quips.STUCK)
+            addAll(Quips.STUCK_BY_GAME.values)
+            add(Quips.ABANDONED)
+            add(Quips.RESTART)
+            for (h in 0..23) add(Greetings.timeOfDay(h))
+        }
+        for (lines in lists) {
+            assertEquals(lines.size, lines.toSet().size, "duplicate in ${lines.groupBy { it }.filter { it.value.size > 1 }.keys}")
+            for (line in lines) assertTrue(line.length <= 90, "too long (${line.length}): $line")
+        }
+        assertTrue(Fortunes.random(win()).size >= 120)
+        assertTrue(Quips.STUCK.size >= 50 && Quips.ABANDONED.size >= 30 && Quips.RESTART.size >= 20)
     }
 
     @Test
     fun `achievement ids are unique and every one can be earned`() {
         assertEquals(Achievements.ALL.size, Achievements.ALL.map { it.id }.toSet().size)
-        assertEquals(36, Achievements.ALL.size)
+        assertEquals(54, Achievements.ALL.size)
     }
 
     @Test
@@ -134,6 +164,18 @@ class ExtrasTest {
         val earned = Achievements.newlyEarned(facts, emptySet()).map { it.id }
         assertEquals(listOf("first_win", "no_undo", "beat_solver", "night_owl", "halloween", "lucky"), earned)
         assertTrue(Achievements.newlyEarned(facts, earned.toSet()).isEmpty())
+    }
+
+    @Test
+    fun `new achievements`() {
+        fun earned(w: WinFacts) = Achievements.newlyEarned(
+            AchievementFacts(mapOf(w.ruleSet to mapOf(w.tier to 1)), 0, 0, 0, 1, win = w), setOf("first_win"),
+        ).map { it.id }
+        val pure = earned(win(tier = Tier.HARD, usedUndo = false, moves = 120, now = LocalDateTime.of(2026, 2, 13, 15, 0)))
+        assertTrue("purist" in pure && "great_minds" in pure && "friday13" in pure, "$pure")
+        assertTrue("purist" !in earned(win(tier = Tier.MEDIUM, usedUndo = false)))
+        assertTrue("comeback" in earned(win(streak = 1).copy(lostStreak = 6)))
+        assertTrue("comeback" !in earned(win(streak = 1).copy(lostStreak = 4)))
     }
 
     @Test

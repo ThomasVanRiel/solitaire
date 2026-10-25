@@ -294,7 +294,9 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   (New game), `Quips` (stuck banner, leaving a game unwon, Restart), `Achievements` and `Scorecards`.
   Notable moments (first wins, records, streaks, holidays) always get their line; otherwise a line about the
   game sometimes, else a random one seeded by the deal number. A line is never the same as the last one of
-  its kind. `ExtrasStore` ("extras" preferences) keeps unlocked achievement ids, the counters the stats
+  its kind. Greetings go: first game, holiday, a long absence, then sometimes a line for coming back, an
+  unfinished game, a streak or the day of the week, else one for the time of day; the pick is the same
+  within an hour. `ExtrasStore` ("extras" preferences) keeps unlocked achievement ids, the counters the stats
   don't have (weekend wins, days played in a row, games left unwon in a row, the streak a loss ended) and
   the last line of each kind. Achievements are checked after a win, a hint and a game's first move; new ones
   queue as pop-ups with no touch handling, so taps go through. Reset statistics also clears them.

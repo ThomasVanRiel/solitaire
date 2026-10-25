@@ -82,6 +82,34 @@ object Achievements {
         w("lucky", "Lucky Number", "Win deal #7, #77 or #777 of any game.") { it.seed == 7L || it.seed == 77L || it.seed == 777L },
         a("days_7", "Daily Habit", "Play on 7 days in a row.") { it.dayStreak >= 7 },
         a("days_30", "Committed", "Play on 30 days in a row.") { it.dayStreak >= 30 },
+        a("wins_50", "Regular", "Win 50 games.") { it.totalWins >= 50 },
+        a("wins_500", "Half a Grand", "Win 500 games.") { it.totalWins >= 500 },
+        a("klondike_100", "Prospector", "Win 100 Klondike games.") { it.winsIn(GameType.KLONDIKE) >= 100 },
+        a("expert_all", "Expert in Everything", "Win an Expert game of every game type.") { f ->
+            RuleSet.ALL.all { (f.wins[it]?.get(Tier.EXPERT) ?: 0) > 0 }
+        },
+        a("no_hints_100", "Self-Made", "Win 100 games without hints.") { it.winsWithoutHints >= 100 },
+        w("purist", "Purist", "Win a Hard or Expert game without undo or hints.") {
+            !it.usedUndo && it.hints == 0 && (it.tier == Tier.HARD || it.tier == Tier.EXPERT)
+        },
+        w("great_minds", "Great Minds", "Win in exactly as many moves as the stored solution.") {
+            it.solutionMoves > 0 && it.moves == it.solutionMoves
+        },
+        w("fast_freecell", "Quick Release", "Win a FreeCell game in under 3 minutes.") {
+            it.ruleSet.game == GameType.FREECELL && it.seconds < 180
+        },
+        w("marathon", "Marathon", "Win a game that took over 3 hours.") { it.seconds > 3 * 3600 },
+        w("streak_50", "Are You a Robot?", "Win 50 in a row.") { it.streak >= 50 },
+        w("comeback", "Comeback", "Win straight after losing a streak of 5 or more.") { it.lostStreak >= 5 && it.streak == 1 },
+        w("restarts_10", "Stubborn", "Win a deal you restarted at least 10 times.") { it.restarts >= 10 },
+        a("days_100", "Part of the Furniture", "Play on 100 days in a row.") { it.dayStreak >= 100 },
+        w("friday13", "Unlucky for Some", "Win on Friday the 13th.") {
+            it.now.dayOfMonth == 13 && it.now.dayOfWeek == DayOfWeek.FRIDAY
+        },
+        w("valentine", "Queen of Hearts", "Win on 14 February.") { it.now.monthValue == 2 && it.now.dayOfMonth == 14 },
+        w("pi_day", "Easy as Pi", "Win on 14 March.") { it.now.monthValue == 3 && it.now.dayOfMonth == 14 },
+        w("leap_day", "Leap of Faith", "Win on 29 February.") { it.now.monthValue == 2 && it.now.dayOfMonth == 29 },
+        w("christmas", "Deck the Halls", "Win between 24 and 26 December.") { it.now.monthValue == 12 && it.now.dayOfMonth in 24..26 },
     )
 
     fun byId(id: String): Achievement? = ALL.firstOrNull { it.id == id }
