@@ -120,23 +120,36 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                 onShare = { showShare = true },
                 extra = { DebugTools.ExtraButtons(vm) },
             )
+            // Let the last cards finish sliding before the win screen covers them.
+            var winShown by remember { mutableStateOf(false) }
+            LaunchedEffect(ui.won, ui.busy) {
+                winShown = false
+                if (ui.won && !ui.busy) {
+                    delay(650)
+                    winShown = true
+                }
+            }
             val game = ui.game
             if (game == null || ui.loading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color.White) }
             } else {
-                Board(
-                    game = game,
-                    enabled = !ui.busy && !ui.won,
-                    onStock = vm::tapStock,
-                    onTap = vm::tap,
-                    onDrop = { source, target -> vm.drop(source, target) },
-                    legalTargets = vm::legalTargets,
-                    seed = ui.seed,
-                    // Shorter while the game plays moves itself (auto-finish, debug autoplay).
-                    animationMillis = if (ui.busy) 70 else 170,
-                    modifier = Modifier.fillMaxSize().padding(top = 4.dp),
-                    hint = ui.hint,
-                )
+                // The win screen covers the board only, so the top bar stays usable.
+                Box(Modifier.fillMaxSize()) {
+                    Board(
+                        game = game,
+                        enabled = !ui.busy && !ui.won,
+                        onStock = vm::tapStock,
+                        onTap = vm::tap,
+                        onDrop = { source, target -> vm.drop(source, target) },
+                        legalTargets = vm::legalTargets,
+                        seed = ui.seed,
+                        // Shorter while the game plays moves itself (auto-finish, debug autoplay).
+                        animationMillis = if (ui.busy) 70 else 170,
+                        modifier = Modifier.fillMaxSize().padding(top = 4.dp),
+                        hint = ui.hint,
+                    )
+                    if (winShown && ui.won && !ui.busy) WinOverlay(ui, onNewGame = { showNewGame = true }, onShare = { showShare = true })
+                }
             }
         }
         Column(
@@ -152,16 +165,6 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
             }
             if (ui.stuck && !ui.won) StuckBanner(ui.stuckLine, onUndo = vm::undo, onNewGame = { showNewGame = true })
         }
-        // Let the last cards finish sliding before the win screen covers them.
-        var winShown by remember { mutableStateOf(false) }
-        LaunchedEffect(ui.won, ui.busy) {
-            winShown = false
-            if (ui.won && !ui.busy) {
-                delay(650)
-                winShown = true
-            }
-        }
-        if (winShown && ui.won && !ui.busy) WinOverlay(ui, onNewGame = { showNewGame = true }, onShare = { showShare = true })
         // On top of everything, and lets every tap through.
         val popups by vm.achievementPopups.collectAsStateWithLifecycle()
         AchievementPopup(popups.firstOrNull(), onShown = vm::achievementShown, modifier = Modifier.align(Alignment.TopCenter))
@@ -228,7 +231,7 @@ private fun TopBar(
             FilledTonalButton(onClick = onRestart, enabled = hasMoves, modifier = Modifier.weight(1f), contentPadding = pad) {
                 Text("Restart", maxLines = 1)
             }
-            IconTopButton("Undo", onUndo, enabled = hasMoves) { UndoIcon() }
+            IconTopButton("Undo", onUndo, enabled = hasMoves && !ui.won) { UndoIcon() }
             IconTopButton("Hint", onHint, enabled = canHint) {
                 Text("?", fontWeight = FontWeight.Bold, fontSize = 20.sp)
             }

@@ -201,7 +201,8 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   a King; Spider/Scorpion: same-suit card, any card, empty column). Drag highlights legal targets.
 - Top bar: New game and Restart as text buttons; Undo, Hint and Statistics as small icon buttons drawn on a
   Canvas (no icon library), each with a content description. The second row has the deal (tap to share)
-  and the move count and clock.
+  and the move count and clock. The win screen dims the board only: New game, Restart and Statistics stay
+  usable, while Undo and Hint are off once the game is won.
 - `ui/MoveAnimation`: 170 ms per move (70 ms while autoplaying). Undo, Restart and New game are instant.
 - `ui/FeltSurprise`: a faint swirl on the felt on about 1 deal in 25, chosen by a hash of the deal number.
 - The fun bits (`extras/`, pure Kotlin, tested by `:extras:test`): `Fortunes` (win line), `Greetings`
@@ -224,5 +225,4 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
 - The Spider difficulty player rarely wins, so Spider tiers rest on progress rather than wins.
 - In landscape, a Spider column with 15 or more face-up cards is tight.
 - After debug autoplay the win screen time can read 0:00.
-- Undo still works through the win screen.
 - An autoplay intent sent while the app is open is dropped by Android; use `am start -S`.
