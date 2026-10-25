@@ -19,7 +19,7 @@ data class GreetingFacts(
 object Greetings {
     /** The same within one hour, so it doesn't change while the dialog is open. */
     fun pick(f: GreetingFacts): String {
-        if (f.firstGameEver) return "Hello! Every deal here can be won. Good luck."
+        if (f.firstGameEver) return "Hello, and welcome to the table."
         holiday(f.now)?.let { return it }
         val days = f.daysSinceLastPlayed
         if (days != null && days >= 7) return "Welcome back. The cards missed you."

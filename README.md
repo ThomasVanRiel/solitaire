@@ -28,7 +28,7 @@ game and statistics are kept.
 
 | Won | New game (dark mode) | Share a deal |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/win.png" width="240" alt="The win screen with Share deal and New game"> | <img src="docs/screenshots/new-game-dark.png" width="240" alt="The New game dialog in dark mode: game, suits, difficulty and a deal code field"> | <img src="docs/screenshots/share.png" width="240" alt="The share dialog showing deal code SC-6"> |
+| <img src="docs/screenshots/win.png" width="240" alt="The win screen with Share deal, New game and a fortune-cookie line"> | <img src="docs/screenshots/new-game-dark.png" width="240" alt="The New game dialog in dark mode: a greeting, game, suits, difficulty and a deal code field"> | <img src="docs/screenshots/share.png" width="240" alt="The share dialog showing deal code SC-6"> |
 
 <img src="docs/screenshots/landscape.png" width="740" alt="Klondike in landscape: foundations on the left, the stock and waste on the right">
 

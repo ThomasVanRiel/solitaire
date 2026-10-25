@@ -110,7 +110,7 @@ class ExtrasTest {
     fun `greetings`() {
         fun g(now: LocalDateTime = wednesday, first: Boolean = false, days: Long? = 0) =
             Greetings.pick(GreetingFacts(now, first, days, leavingUnfinished = false, streak = 0))
-        assertEquals("Hello! Every deal here can be won. Good luck.", g(first = true))
+        assertEquals("Hello, and welcome to the table.", g(first = true))
         assertEquals("Welcome back. The cards missed you.", g(days = 9))
         assertEquals("Spooky deals tonight.", g(now = LocalDateTime.of(2026, 10, 31, 21, 0)))
         assertEquals(g(), g(now = wednesday.plusMinutes(20)))
