@@ -16,7 +16,8 @@ kotlin {
 
 application {
     mainClass = "io.github.thomasvanriel.solitaire.dealgen.MainKt"
-    applicationDefaultJvmArgs = listOf("-Xmx2g")
+    // More threads need more memory: ./gradlew :dealgen:run -PdealgenHeap=8g --args="..."
+    applicationDefaultJvmArgs = listOf("-Xmx" + (findProperty("dealgenHeap") ?: "2g"))
 }
 
 dependencies {

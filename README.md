@@ -128,7 +128,9 @@ deal number always gives the same deal.
 
 ## Building
 
-Requirements: JDK 17 or newer, and the Android SDK (only for the app module).
+Requirements: JDK 17 or newer, and the Android SDK (only for the app module). **New machine?** Follow
+[`docs/SETUP.md`](docs/SETUP.md): installing the tools, building, the emulator and generating packs, step by
+step for Linux and Windows.
 
 ```sh
 ./gradlew :engine:test          # engine tests, no device needed
@@ -188,6 +190,9 @@ tool makes them:
 | `--nodes N` | 300000 | Solver node budget per deal (deals that run out are skipped) |
 | `--out DIR` | `app/src/main/assets/deals` | Output folder |
 | `--calibrate N` | off | Only rate the first N winnable deals and print the rating histogram |
+
+The generator runs with a 2 GB heap; with many threads give it more with `-PdealgenHeap=8g` (a Gradle
+property, so it goes before `--args`).
 
 The output is deterministic for the same options. Each solution is stored as one byte per move: the move's
 index in the rules engine's legal-move list (an index of 255 or more, which only Spider can reach, takes

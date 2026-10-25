@@ -15,6 +15,11 @@ Changes that weaken this to make something faster or simpler will not be accepte
 - Never commit signing keys or passwords.
 - Keep the UI simple.
 
+## Setting up
+
+[`docs/SETUP.md`](docs/SETUP.md) walks through installing the JDK, the Android SDK and an emulator, and
+generating the deal packs.
+
 ## Before sending a change
 
 ```sh

@@ -100,12 +100,14 @@ private val RULE_NAMES = linkedMapOf(
     "freecell" to RuleSet.FREECELL,
 )
 
-private val solvers = ThreadLocal<HashMap<Pair<RuleSet, Long>, DealSolver>>()
+/** One solver per worker thread, for the rule set being generated (older ones are dropped, to bound memory). */
+private val solvers = ThreadLocal<Pair<Pair<RuleSet, Long>, DealSolver>>()
 
 /** Solves, verifies and rates one seed. Nothing is accepted unless ProofVerifier replays it to a win. */
 private fun process(seed: Long, rs: RuleSet, o: Options): Outcome {
-    val cache = solvers.get() ?: HashMap<Pair<RuleSet, Long>, DealSolver>().also { solvers.set(it) }
-    val solver = cache.getOrPut(rs to o.nodes) { DealSolver.create(rs, maxNodes = o.nodes, timeLimitMs = 120_000) }
+    val key = rs to o.nodes
+    val solver = solvers.get()?.takeIf { it.first == key }?.second
+        ?: DealSolver.create(rs, maxNodes = o.nodes, timeLimitMs = 120_000).also { solvers.set(key to it) }
     val start = Deals.deal(seed, rs)
     return when (val r = solver.solve(start)) {
         is SolveResult.Unsolvable -> Outcome(seed, null, null, "unsolvable")
