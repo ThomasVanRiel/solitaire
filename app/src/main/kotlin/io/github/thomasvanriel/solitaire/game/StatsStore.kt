@@ -11,7 +11,12 @@ data class TierStats(
     val wonWithoutUndo: Int = 0,
     val bestTime: Long = -1,
     val fewestMoves: Int = -1,
+    /** Hints shown, in all games. */
+    val hints: Int = 0,
+    /** Wins in games where a hint was used. */
+    val wonWithHints: Int = 0,
 ) {
+    val wonWithoutHints: Int get() = won - wonWithHints
     val winRate: Double get() = if (played == 0) 0.0 else won.toDouble() / played
 }
 
@@ -24,6 +29,8 @@ data class ModeStats(
     val played: Int get() = tiers.values.sumOf { it.played }
     val won: Int get() = tiers.values.sumOf { it.won }
     val wonWithoutUndo: Int get() = tiers.values.sumOf { it.wonWithoutUndo }
+    val hints: Int get() = tiers.values.sumOf { it.hints }
+    val wonWithoutHints: Int get() = tiers.values.sumOf { it.wonWithoutHints }
     val winRate: Double get() = if (played == 0) 0.0 else won.toDouble() / played
 }
 
@@ -48,6 +55,8 @@ class StatsStore(private val context: Context) {
                 wonWithoutUndo = prefs.getInt(key("noUndo", rs, t), 0),
                 bestTime = prefs.getLong(key("bestTime", rs, t), -1),
                 fewestMoves = prefs.getInt(key("fewestMoves", rs, t), -1),
+                hints = prefs.getInt(key("hints", rs, t), 0),
+                wonWithHints = prefs.getInt(key("hintWins", rs, t), 0),
             )
         },
         currentStreak = prefs.getInt(key("streak", rs), 0),
@@ -62,12 +71,17 @@ class StatsStore(private val context: Context) {
         prefs.edit().putInt(k, prefs.getInt(k, 0) + 1).apply()
     }
 
+    fun recordHint(rs: RuleSet, tier: Tier) {
+        val k = key("hints", rs, tier)
+        prefs.edit().putInt(k, prefs.getInt(k, 0) + 1).apply()
+    }
+
     /** A played game that was abandoned (New game before winning) breaks the streak. */
     fun recordLoss(rs: RuleSet) {
         prefs.edit().putInt(key("streak", rs), 0).apply()
     }
 
-    fun recordWin(rs: RuleSet, tier: Tier, seconds: Long, moves: Int, usedUndo: Boolean): WinRecord {
+    fun recordWin(rs: RuleSet, tier: Tier, seconds: Long, moves: Int, usedUndo: Boolean, usedHint: Boolean): WinRecord {
         val t = load(rs).tiers.getValue(tier)
         val streak = prefs.getInt(key("streak", rs), 0) + 1
         val newBestTime = t.bestTime < 0 || seconds < t.bestTime
@@ -75,6 +89,7 @@ class StatsStore(private val context: Context) {
         prefs.edit().apply {
             putInt(key("won", rs, tier), t.won + 1)
             if (!usedUndo) putInt(key("noUndo", rs, tier), t.wonWithoutUndo + 1)
+            if (usedHint) putInt(key("hintWins", rs, tier), t.wonWithHints + 1)
             if (newBestTime) putLong(key("bestTime", rs, tier), seconds)
             if (newFewest) putInt(key("fewestMoves", rs, tier), moves)
             putInt(key("streak", rs), streak)

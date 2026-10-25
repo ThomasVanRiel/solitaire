@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.thomasvanriel.solitaire.engine.difficulty.Tier
+import io.github.thomasvanriel.solitaire.engine.hint.Advice
+import io.github.thomasvanriel.solitaire.engine.hint.MoveAdvisor
 import io.github.thomasvanriel.solitaire.engine.model.Card
 import io.github.thomasvanriel.solitaire.engine.model.GameState
 import io.github.thomasvanriel.solitaire.engine.model.GameType
@@ -19,6 +21,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,6 +60,12 @@ data class GameUiState(
     val winRecord: WinRecord? = null,
     /** A short message shown for a moment, such as why the stock can't deal. */
     val notice: String? = null,
+    /** Hints shown in this game (Restart doesn't reset it). */
+    val hintsUsed: Int = 0,
+    /** The hint on screen, until the next move. */
+    val hint: Move? = null,
+    /** No move that helps is left: the game can't be won from here without undoing. */
+    val stuck: Boolean = false,
 ) {
     val won: Boolean get() = game?.isWon == true
     val moveCount: Int get() = game?.moves?.size ?: 0
@@ -78,12 +89,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var clockRunning = false
     private var scriptJob: Job? = null
     private var noticeJob: Job? = null
+    private var hintJob: Job? = null
 
     val lastRuleSet: RuleSet get() = store.lastRuleSet
     val lastTier: Tier get() = store.lastTier
 
     init {
         viewModelScope.launch { restoreOrStart() }
+        viewModelScope.launch { watchForStuck() }
         viewModelScope.launch {
             while (true) {
                 delay(1000)
@@ -91,6 +104,45 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 if (clockRunning && s.game != null && !s.won && s.moveCount > 0) {
                     _state.update { it.copy(elapsedSeconds = it.elapsedSeconds + 1) }
                 }
+            }
+        }
+    }
+
+    /** After every change to the game: clear the hint, and check in the background whether the player is stuck. */
+    private suspend fun watchForStuck() {
+        _state.map { it.game to it.busy }.distinctUntilChanged().collectLatest { (game, busy) ->
+            _state.update { if (it.hint == null && !it.stuck) it else it.copy(hint = null, stuck = false) }
+            if (game == null || game.isWon || busy) return@collectLatest
+            delay(300) // let a burst of moves (auto-finish, autoplay) settle first
+            val advice = withContext(Dispatchers.Default) { MoveAdvisor.advise(game.state, game.ruleSet) }
+            if (advice is Advice.Stuck) _state.update { if (it.game === game && !it.busy) it.copy(stuck = true) else it }
+        }
+    }
+
+    /**
+     * Shows a legal move that helps (or leads to one), without playing it. It isn't the best move, so it
+     * doesn't solve the game. Every hint shown counts in the statistics.
+     */
+    fun hint() {
+        val s = _state.value
+        val game = s.game ?: return
+        if (s.busy || s.won || s.hint != null || hintJob?.isActive == true) return
+        hintJob = viewModelScope.launch {
+            val advice = withContext(Dispatchers.Default) {
+                MoveAdvisor.advise(game.state, game.ruleSet, maxStates = HINT_MAX_STATES)
+            }
+            val now = _state.value
+            if (now.game !== game) return@launch
+            when (advice) {
+                is Advice.Hint -> {
+                    if (!now.assisted) statsStore.recordHint(now.ruleSet, now.tier)
+                    _state.value = now.copy(hint = advice.move, hintsUsed = now.hintsUsed + 1)
+                    save()
+                    refreshStats()
+                }
+                Advice.Stuck -> _state.value = now.copy(stuck = true)
+                Advice.Unknown -> showNotice("No hint found. Try moving some cards around.")
+                Advice.Won -> {}
             }
         }
     }
@@ -111,7 +163,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 _state.value = GameUiState(
                     game, deal.seed, deal.ruleSet, deal.tier, saved.elapsedSeconds, loading = false,
                     counted = saved.counted, usedUndo = saved.usedUndo, assisted = saved.assisted,
-                    winRecorded = saved.winRecorded,
+                    winRecorded = saved.winRecorded, hintsUsed = saved.hintsUsed,
                 )
                 return
             }
@@ -413,7 +465,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             next = next.copy(counted = true)
         }
         if (s.won && !s.winRecorded) {
-            val record = statsStore.recordWin(s.ruleSet, s.tier, s.elapsedSeconds, s.moveCount, s.usedUndo)
+            val record = statsStore.recordWin(s.ruleSet, s.tier, s.elapsedSeconds, s.moveCount, s.usedUndo, s.hintsUsed > 0)
             next = next.copy(winRecorded = true, winRecord = record)
         }
         if (next !== s) {
@@ -429,7 +481,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             SavedGame(
                 s.seed, s.ruleSet, s.tier, game.moves, s.elapsedSeconds,
                 counted = s.counted, usedUndo = s.usedUndo, assisted = s.assisted, winRecorded = s.winRecorded,
+                hintsUsed = s.hintsUsed,
             ),
         )
+    }
+
+    private companion object {
+        /** Hints may search further than the stuck check, since the player is waiting for an answer. */
+        const val HINT_MAX_STATES = 40_000
     }
 }

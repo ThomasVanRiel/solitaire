@@ -2,6 +2,7 @@ package io.github.thomasvanriel.solitaire.ui
 
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -23,6 +24,7 @@ class CardPainter(private val measurer: TextMeasurer) {
     private val backLine = Color(0xFF3A6DB0)
     private val slotColor = Color(0x55FFFFFF)
     private val highlightColor = Color(0xFFFFD54F)
+    private val hintColor = Color(0xFF4FC3F7)
 
     private val ranks = arrayOf("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 
@@ -76,5 +78,11 @@ class CardPainter(private val measurer: TextMeasurer) {
 
     fun DrawScope.drawHighlight(topLeft: Offset, size: Size, corner: Float) {
         drawRoundRect(highlightColor, topLeft, size, CornerRadius(corner), style = Stroke(width = size.width * 0.07f))
+    }
+
+    /** Outlines a hint: the cards to move, and where they go. [cardWidth] sets the line width. */
+    fun DrawScope.drawHint(rect: Rect, cardWidth: Float, corner: Float) {
+        drawRoundRect(hintColor.copy(alpha = 0.22f), rect.topLeft, rect.size, CornerRadius(corner))
+        drawRoundRect(hintColor, rect.topLeft, rect.size, CornerRadius(corner), style = Stroke(width = cardWidth * 0.08f))
     }
 }

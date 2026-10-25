@@ -149,6 +149,23 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
 | Spider 2 suits (rating %) | ≤14 | 15–17 | 18–20 | ≥21 |
 | Spider 4 suits (rating %) | ≤11 | 12–13 | 14–15 | ≥16 |
 
+## Hints and the stuck check (`engine/hint/MoveAdvisor`)
+
+- A move **helps** when it can't be taken back: it turns over a face-down card, plays a card from the stock
+  or waste (Klondike), deals (Spider, Scorpion II) or takes off a complete run. Every other move only
+  rearranges face-up cards or cycles the Klondike stock, and there are finitely many such positions.
+- `MoveAdvisor.advise` searches those positions breadth first (recycle count ignored with unlimited passes)
+  for one where a helpful move is legal. Results: `Hint(move)` (a helpful move, or the first step towards
+  one), `Stuck` (none reachable: the position can't be won), `Unknown` (over the state budget) or `Won`.
+- Helpful moves at the current position are preferred in this order: a run comes off, a card turns over, a
+  card leaves the stock/waste, a deal. It never searches for the best move, so a hint doesn't solve the game.
+- It only applies moves from `Rules`, and never plays a Spider/Scorpion deal (it only notes that one is
+  legal), so it sees nothing the player couldn't see by cycling the Klondike stock.
+- The app runs it in the background 300 ms after every change to the game (5,000 states) and shows a
+  banner when the result is `Stuck`. The Hint button allows 40,000 states. On a desktop JVM a check takes
+  under 1 ms on average for Klondike and up to about 170 ms for Spider. `MoveAdvisorTest` replays stored
+  winning lines and checks that no position on them is ever called stuck.
+
 ## Deal packs (`engine/pack/`)
 
 - `DealPack`: gzipped binary. Header: magic `WPAK`, format version 1, shuffle version, rule set id, tier id,
@@ -172,7 +189,9 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
 - `SavedGameStore` (SharedPreferences) saves seed, rule set, tier, moves (3 bytes each, key `moves3`; the old
   2-byte `moves` key still loads), time and the stats flags after every move. The game is rebuilt by replay.
   Preferences open lazily, first accessed on `Dispatchers.IO`.
-- `StatsStore`: per variant and tier. A game counts from its first move. New game before winning is a loss
+- `StatsStore`: per variant and tier. Hints shown are counted, and so are wins that used a hint ("won
+  without hints" is won minus those, so wins from before hints existed count as without). A game counts
+  from its first move. New game before winning is a loss
   and ends the streak. Restart is the same game but counts as using undo. Debug autoplay never counts.
 - Board (`ui/BoardLayout`, `ui/Board`, `ui/CardPainter`, `ui/SuitShapes`): one Compose Canvas; suits are
   vector shapes. Portrait: foundations left, stock far right with the waste beside it. Landscape: foundations

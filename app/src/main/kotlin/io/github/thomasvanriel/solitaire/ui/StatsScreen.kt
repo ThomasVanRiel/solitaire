@@ -76,6 +76,8 @@ fun StatsScreen(
                     SummaryLine("Current streak", mode.currentStreak.toString())
                     SummaryLine("Best streak", mode.bestStreak.toString())
                     SummaryLine("Won without undo", mode.wonWithoutUndo.toString())
+                    SummaryLine("Won without hints", mode.wonWithoutHints.toString())
+                    SummaryLine("Hints used", mode.hints.toString())
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -99,7 +101,7 @@ fun StatsScreen(
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "Fewest = fewest moves in a win. A game counts as played from its first move; starting a new " +
+                "Fewest = fewest moves in a win. Hints used counts every hint shown. A game counts as played from its first move; starting a new " +
                     "game before winning ends the streak. Statistics stay on this device.",
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -114,7 +116,7 @@ fun StatsScreen(
         AlertDialog(
             onDismissRequest = { confirmReset = false },
             title = { Text("Reset statistics?") },
-            text = { Text("All statistics for both draw modes are deleted. This can't be undone.") },
+            text = { Text("All statistics for every game are deleted. This can't be undone.") },
             confirmButton = {
                 Button(onClick = {
                     confirmReset = false

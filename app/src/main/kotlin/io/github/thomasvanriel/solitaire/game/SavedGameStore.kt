@@ -17,6 +17,7 @@ class SavedGame(
     val usedUndo: Boolean = false,
     val assisted: Boolean = false,
     val winRecorded: Boolean = false,
+    val hintsUsed: Int = 0,
 )
 
 class SavedGameStore(private val context: Context) {
@@ -35,6 +36,7 @@ class SavedGameStore(private val context: Context) {
             .putBoolean("usedUndo", g.usedUndo)
             .putBoolean("assisted", g.assisted)
             .putBoolean("winRecorded", g.winRecorded)
+            .putInt("hintsUsed", g.hintsUsed)
             .apply()
     }
 
@@ -51,6 +53,7 @@ class SavedGameStore(private val context: Context) {
                 usedUndo = prefs.getBoolean("usedUndo", false),
                 assisted = prefs.getBoolean("assisted", false),
                 winRecorded = prefs.getBoolean("winRecorded", false),
+                hintsUsed = prefs.getInt("hintsUsed", 0),
             )
         } catch (_: IllegalArgumentException) {
             null

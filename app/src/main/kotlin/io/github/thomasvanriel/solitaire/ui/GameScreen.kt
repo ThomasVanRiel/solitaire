@@ -3,6 +3,7 @@ package io.github.thomasvanriel.solitaire.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -91,6 +92,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                 onNewGame = { showNewGame = true },
                 onRestart = { showRestart = true },
                 onUndo = vm::undo,
+                onHint = vm::hint,
                 onStats = { showStats = true },
                 onShare = { showShare = true },
                 extra = { DebugTools.ExtraButtons(vm) },
@@ -110,18 +112,22 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                     // Shorter while the game plays moves itself (auto-finish, debug autoplay).
                     animationMillis = if (ui.busy) 70 else 170,
                     modifier = Modifier.fillMaxSize().padding(top = 4.dp),
+                    hint = ui.hint,
                 )
             }
         }
-        val notice = ui.notice
-        if (notice != null) {
-            Surface(
-                Modifier.align(Alignment.BottomCenter).padding(24.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = Color(0xE6212121),
-            ) {
-                Text(notice, color = Color.White, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+        Column(
+            Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val notice = ui.notice
+            if (notice != null) {
+                Surface(shape = MaterialTheme.shapes.medium, color = Color(0xE6212121)) {
+                    Text(notice, color = Color.White, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+                }
             }
+            if (ui.stuck && !ui.won) StuckBanner(onUndo = vm::undo, onNewGame = { showNewGame = true })
         }
         // Let the last cards finish sliding before the win screen covers them.
         var winShown by remember { mutableStateOf(false) }
@@ -175,6 +181,7 @@ private fun TopBar(
     onNewGame: () -> Unit,
     onRestart: () -> Unit,
     onUndo: () -> Unit,
+    onHint: () -> Unit,
     onStats: () -> Unit,
     onShare: () -> Unit,
     extra: @Composable () -> Unit,
@@ -186,17 +193,27 @@ private fun TopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Button(onClick = onNewGame, modifier = Modifier.weight(1f)) { Text("New game", maxLines = 1) }
-            FilledTonalButton(onClick = onRestart, enabled = hasMoves, modifier = Modifier.weight(1f)) {
+            // Four buttons share a phone's width, so they get less side padding than usual.
+            val pad = PaddingValues(horizontal = 6.dp)
+            val canHint = ui.game != null && !ui.busy && !ui.won && !ui.loading
+            Button(onClick = onNewGame, modifier = Modifier.weight(1.2f), contentPadding = pad) { Text("New game", maxLines = 1) }
+            FilledTonalButton(onClick = onRestart, enabled = hasMoves, modifier = Modifier.weight(1f), contentPadding = pad) {
                 Text("Restart", maxLines = 1)
             }
-            FilledTonalButton(onClick = onUndo, enabled = hasMoves, modifier = Modifier.weight(1f)) {
+            FilledTonalButton(onClick = onUndo, enabled = hasMoves, modifier = Modifier.weight(1f), contentPadding = pad) {
                 Text("Undo", maxLines = 1)
+            }
+            FilledTonalButton(onClick = onHint, enabled = canHint, modifier = Modifier.weight(1f), contentPadding = pad) {
+                Text("Hint", maxLines = 1)
             }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onStats) { Text("Stats", color = Color.White) }
-            // Tap the deal to share its code.
+            OutlinedButton(
+                onClick = onStats,
+                contentPadding = PaddingValues(horizontal = 14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.7f)),
+            ) { Text("Statistics", maxLines = 1) }
             // Tap the deal to share its code. It gets the space left over, and is cut short if it must be.
             Box(Modifier.weight(1f)) {
                 TextButton(onClick = onShare, contentPadding = PaddingValues(horizontal = 4.dp)) {
@@ -236,6 +253,9 @@ private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit, onShare: () -> Un
                         "${ui.moveCount} moves in ${formatTime(ui.elapsedSeconds)}",
                     textAlign = TextAlign.Center,
                 )
+                if (ui.hintsUsed > 0) {
+                    Text(if (ui.hintsUsed == 1) "1 hint used" else "${ui.hintsUsed} hints used", textAlign = TextAlign.Center)
+                }
                 val record = ui.winRecord
                 if (record != null) {
                     val news = buildList {
@@ -251,6 +271,25 @@ private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit, onShare: () -> Un
                     OutlinedButton(onClick = onShare) { Text("Share deal") }
                     Button(onClick = onNewGame) { Text("New game") }
                 }
+            }
+        }
+    }
+}
+
+/** Stays up while no move that helps is left, until the player undoes or starts again. */
+@Composable
+private fun StuckBanner(onUndo: () -> Unit, onNewGame: () -> Unit) {
+    Surface(shape = MaterialTheme.shapes.medium, color = Color(0xF2212121)) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
+            Text("No moves left that help", color = Color.White, fontWeight = FontWeight.Bold)
+            Text(
+                "This position can't be won any more. Undo a few moves and try another way.",
+                color = Color.White.copy(alpha = 0.85f),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Row(Modifier.align(Alignment.End)) {
+                TextButton(onClick = onNewGame) { Text("New game", color = Color.White) }
+                TextButton(onClick = onUndo) { Text("Undo", color = Color.White, fontWeight = FontWeight.Bold) }
             }
         }
     }

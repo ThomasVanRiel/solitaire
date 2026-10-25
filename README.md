@@ -41,6 +41,10 @@ No ads, no analytics, no accounts, and no network access (the app has no `INTERN
 - Tap a card to send it to the best place, or drag it; legal targets light up while you drag. Cards slide
   to their new place.
 - Unlimited undo, and a Restart button to replay the same deal from the start.
+- **Hint** outlines a move that helps (turns a card over, plays a card from the stock, or leads to one).
+  It is just a possible move, not the best one, so it never solves the deal for you.
+- When no move that helps is left anywhere, a message says the position can't be won any more and offers
+  Undo.
 - In Spider and Scorpion II there is a little extra space wherever a same-suit sequence breaks, so valid
   sequences sit together.
 - The stock sits on the right, under your thumb; the foundations are on the left. In landscape they move
@@ -54,7 +58,7 @@ No ads, no analytics, no accounts, and no network access (the app has no `INTERN
   in the app's packs can be played. Sharing uses Android's share sheet, so the app still needs no network
   access.
 - Statistics per game variant and difficulty: games played and won, win rate, streaks, fastest win, fewest
-  moves, and wins without undo. They stay on your phone.
+  moves, wins without undo or hints, and hints used. They stay on your phone.
 
 Cards are drawn in code: no image assets.
 

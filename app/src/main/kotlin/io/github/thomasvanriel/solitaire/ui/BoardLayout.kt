@@ -3,7 +3,9 @@ package io.github.thomasvanriel.solitaire.ui
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import io.github.thomasvanriel.solitaire.engine.model.Card
 import io.github.thomasvanriel.solitaire.engine.model.GameState
+import io.github.thomasvanriel.solitaire.engine.model.Move
 import io.github.thomasvanriel.solitaire.engine.model.GameType
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.game.Source
@@ -276,6 +278,32 @@ class BoardLayout(
             else Rect(cardOffset(t.col, size - 1), cardSize)
         }
     }
+
+    /** Rectangles to outline for a hint: the cards that move, then where they go (or the stock, to draw or deal). */
+    fun hintRects(move: Move): List<Rect> {
+        fun column(c: Int) = targetRect(Target.Column(c), 0)
+        fun card(c: Int, i: Int) = Rect(cardOffset(c, i), cardSize)
+        return when (move) {
+            Move.Draw, Move.Recycle -> {
+                val stock = stockPositions()
+                listOf(if (stock.isEmpty()) stockRect else stock.map { Rect(it, cardSize) }.reduce(::span))
+            }
+            is Move.WasteToTableau -> listOfNotNull(wasteTopRect(), column(move.col))
+            Move.WasteToFoundation -> listOfNotNull(wasteTopRect(), foundationRect(Card.suit(state.wasteTop())))
+            is Move.TableauToFoundation -> {
+                val top = state.tabSize[move.col] - 1
+                listOf(card(move.col, top), foundationRect(Card.suit(state.tab[move.col][top])))
+            }
+            is Move.TableauToTableau -> {
+                val size = state.tabSize[move.from]
+                listOf(span(card(move.from, size - move.count), card(move.from, size - 1)), column(move.to))
+            }
+            is Move.FoundationToTableau -> listOf(foundationRect(move.suit), column(move.col))
+        }
+    }
+
+    private fun span(a: Rect, b: Rect) =
+        Rect(minOf(a.left, b.left), minOf(a.top, b.top), maxOf(a.right, b.right), maxOf(a.bottom, b.bottom))
 
     /** Step between dragged cards of a run. */
     val dragStep: Float get() = upStepFull

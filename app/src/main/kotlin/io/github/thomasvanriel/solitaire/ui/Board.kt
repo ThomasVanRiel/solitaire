@@ -25,6 +25,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import io.github.thomasvanriel.solitaire.engine.model.Card
 import io.github.thomasvanriel.solitaire.engine.model.GameState
 import io.github.thomasvanriel.solitaire.engine.model.GameType
+import io.github.thomasvanriel.solitaire.engine.model.Move
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.engine.rules.Game
 import io.github.thomasvanriel.solitaire.game.Source
@@ -51,6 +52,7 @@ fun Board(
     seed: Long,
     animationMillis: Int,
     modifier: Modifier = Modifier,
+    hint: Move? = null,
 ) {
     val ruleSet = game.ruleSet
     val measurer = rememberTextMeasurer(cacheSize = 128)
@@ -223,6 +225,11 @@ fun Board(
                         if (i < state.tabDown[c]) drawFaceDown(pos, l.cardSize, l.corner)
                         else drawFaceUp(state.tab[c][i], pos, l.cardSize, l.corner)
                     }
+                }
+
+                // Hint: the cards to move and where they go (once the board has settled).
+                if (hint != null && anim == null && d == null) {
+                    for (r in l.hintRects(hint)) drawHint(r, l.cardWidth, l.corner)
                 }
 
                 // Drag: highlight legal targets, then draw the dragged cards on top.
