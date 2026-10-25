@@ -108,7 +108,8 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
     if (showStats) {
         val stats by vm.stats.collectAsStateWithLifecycle()
         val unlocked by vm.unlockedAchievements.collectAsStateWithLifecycle()
-        StatsScreen(stats, unlocked, initialRuleSet = ui.ruleSet, onReset = vm::resetStats, onClose = { showStats = false })
+        val days by vm.days.collectAsStateWithLifecycle()
+        StatsScreen(stats, days, unlocked, initialRuleSet = ui.ruleSet, onReset = vm::resetStats, onClose = { showStats = false })
         return
     }
 
@@ -281,7 +282,11 @@ private fun TopBar(
             }
             extra()
             Text(
-                "${ui.moveCount} moves · ${formatTime(ui.elapsedSeconds)}",
+                buildString {
+                    append("${ui.moveCount} moves · ")
+                    if (ui.failedMoves > 0) append("${ui.failedMoves} failed · ")
+                    append(formatTime(ui.elapsedSeconds))
+                },
                 color = OnFelt.copy(alpha = 0.85f),
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
@@ -308,6 +313,12 @@ private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit, onShare: () -> Un
                     )
                     if (ui.hintsUsed > 0) {
                         Text(if (ui.hintsUsed == 1) "1 hint used" else "${ui.hintsUsed} hints used", textAlign = TextAlign.Center)
+                    }
+                    if (ui.failedMoves > 0) {
+                        Text(
+                            if (ui.failedMoves == 1) "1 failed move" else "${ui.failedMoves} failed moves",
+                            textAlign = TextAlign.Center,
+                        )
                     }
                     val record = ui.winRecord
                     if (record != null) {

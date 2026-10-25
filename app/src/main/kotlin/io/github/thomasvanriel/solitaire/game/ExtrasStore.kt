@@ -26,6 +26,16 @@ class ExtrasStore(private val context: Context) {
 
     val weekendWins: Int get() = prefs.getInt("weekendWins", 0)
     val dayStreak: Int get() = prefs.getInt("dayStreak", 0)
+
+    /** Days on which a game was started. Before version 0.6.2 this wasn't kept, so it starts from the day streak. */
+    val daysPlayed: Int get() = prefs.getInt("daysPlayed", dayStreak)
+    val bestDayStreak: Int get() = prefs.getInt("bestDayStreak", dayStreak)
+
+    /** The run of days played that is still going (played today or yesterday), else 0. */
+    fun currentDayStreak(today: LocalDate): Int {
+        val since = daysSinceLastPlayed(today) ?: return 0
+        return if (since <= 1) dayStreak else 0
+    }
     val abandonedInARow: Int get() = prefs.getInt("abandonedInARow", 0)
 
     /** Days since a game was last played, or null if none ever was. */
@@ -41,7 +51,12 @@ class ExtrasStore(private val context: Context) {
             day - 1 -> dayStreak + 1
             else -> 1
         }
-        prefs.edit().putLong("lastPlayedDay", day).putInt("dayStreak", streak).apply()
+        prefs.edit()
+            .putLong("lastPlayedDay", day)
+            .putInt("dayStreak", streak)
+            .putInt("daysPlayed", if (last == day) daysPlayed else daysPlayed + 1)
+            .putInt("bestDayStreak", maxOf(bestDayStreak, streak))
+            .apply()
     }
 
     fun recordWin(rs: RuleSet, now: LocalDateTime) {

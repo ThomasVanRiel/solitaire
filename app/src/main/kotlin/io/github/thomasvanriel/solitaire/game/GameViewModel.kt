@@ -82,6 +82,13 @@ data class GameUiState(
     val notice: String? = null,
     /** Hints shown in this game (Restart doesn't reset it). */
     val hintsUsed: Int = 0,
+    /**
+     * Moves tried that the rules don't allow: a tapped card with nowhere to go, a drop on a place it can't
+     * go, a Spider deal with an empty column. Restart doesn't reset it.
+     */
+    val failedMoves: Int = 0,
+    /** Undos in this game (Restart doesn't reset it). */
+    val undos: Int = 0,
     /** The hint on screen, until the next move. */
     val hint: Move? = null,
     /** No move that helps is left: the game can't be won from here without undoing. */
@@ -109,6 +116,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _stats = MutableStateFlow<Map<RuleSet, ModeStats>>(emptyMap())
     val stats: StateFlow<Map<RuleSet, ModeStats>> = _stats.asStateFlow()
+
+    private val _days = MutableStateFlow(DayStats())
+
+    /** Days played and the run of days, for the Statistics screen. */
+    val days: StateFlow<DayStats> = _days.asStateFlow()
 
     private val _unlocked = MutableStateFlow<Set<String>>(emptySet())
 
@@ -169,6 +181,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             s.ruleSet, s.tier, s.seed, s.moveCount, s.elapsedSeconds, s.usedUndo, s.hintsUsed, times,
             streak = _stats.value[s.ruleSet]?.currentStreak ?: 0, now = LocalDateTime.now(),
         )
+        if (!s.assisted) statsStore.recordStuck(s.ruleSet, s.tier)
         val line = Quips.stuck(facts, extras.lastLine("stuck"))
         extras.setLastLine("stuck", line)
         _state.value = s.copy(stuck = true, timesStuck = times, stuckLine = line)
@@ -209,6 +222,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             extras.warmUp()
             extras.unlocked
         }
+        _days.value = dayStats()
         val saved = withContext(Dispatchers.IO) { store.load() }
         if (saved != null) {
             val restored = withContext(Dispatchers.Default) {
@@ -224,6 +238,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     game, deal.seed, deal.ruleSet, deal.tier, saved.elapsedSeconds, loading = false,
                     counted = saved.counted, usedUndo = saved.usedUndo, assisted = saved.assisted,
                     winRecorded = saved.winRecorded, hintsUsed = saved.hintsUsed, restarts = saved.restarts,
+                    failedMoves = saved.failedMoves, undos = saved.undos,
                 )
                 return
             }
@@ -268,6 +283,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun abandonCurrent(): String? {
         val s = _state.value
         scriptJob?.cancel()
+        // A won game's time went in with the win.
+        if (s.counted && !s.assisted && !s.winRecorded) statsStore.addPlayTime(s.ruleSet, s.tier, s.elapsedSeconds)
         if (!s.counted || s.won || s.assisted) return null
         val lostStreak = statsStore.load(s.ruleSet).currentStreak
         statsStore.recordLoss(s.ruleSet)
@@ -378,7 +395,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             while (g.canUndo && g.moves.last() is Move.TableauToFoundation) g = g.undo()
         }
         if (g.canUndo) g = g.undo()
-        _state.value = s.copy(game = g, usedUndo = true)
+        if (!s.assisted) statsStore.recordUndo(s.ruleSet, s.tier)
+        _state.value = s.copy(game = g, usedUndo = true, undos = s.undos + 1)
         save()
     }
 
@@ -392,6 +410,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         if (s.stockSize == 0) return
         if (!Rules.canDeal(s, game.ruleSet)) {
+            countFailedMove()
             showNotice("Fill every empty column before dealing")
             return
         }
@@ -416,13 +435,24 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
         }
+        countFailedMove()
     }
 
     fun drop(source: Source, target: Target): Boolean {
+        // No move at all (such as dropping a card back where it came from) isn't a failed move.
         val move = moveFor(source, target) ?: return false
         if (play(move)) return true
+        countFailedMove()
         explainTooLongRun(move)
         return false
+    }
+
+    /** Counts a move the rules don't allow, while the game is being played. */
+    private fun countFailedMove() {
+        val s = _state.value
+        if (s.game == null || s.busy || s.won) return
+        _state.value = s.copy(failedMoves = s.failedMoves + 1)
+        save()
     }
 
     /** FreeCell: says why a run that fits its target still can't move. */
@@ -567,6 +597,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         scriptJob?.cancel()
         val s = _state.value
         val game = s.game ?: return
+        // The clock starts again, so the time so far goes into the time played now.
+        if (s.counted && !s.assisted && !s.winRecorded) statsStore.addPlayTime(s.ruleSet, s.tier, s.elapsedSeconds)
         _state.value = s.copy(
             game = game.restart(), busy = false, elapsedSeconds = 0,
             usedUndo = s.usedUndo || game.canUndo,
@@ -576,7 +608,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The Restart button: [restart], plus a quip about it. */
     fun restartByPlayer() {
-        if (_state.value.game == null) return
+        val before = _state.value
+        if (before.game == null) return
+        if (!before.assisted) statsStore.recordRestart(before.ruleSet, before.tier)
         restart()
         val s = _state.value
         val restarts = s.restarts + 1
@@ -598,10 +632,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         extras.reset()
         _unlocked.value = emptySet()
         _stats.value = RuleSet.ALL.associateWith { ModeStats() }
+        _days.value = DayStats()
     }
 
+    private fun dayStats() = DayStats(extras.daysPlayed, extras.currentDayStreak(LocalDate.now()), extras.bestDayStreak)
+
     private fun refreshStats() {
-        viewModelScope.launch { _stats.value = withContext(Dispatchers.IO) { statsStore.loadAll() } }
+        viewModelScope.launch {
+            _stats.value = withContext(Dispatchers.IO) { statsStore.loadAll() }
+            _days.value = dayStats()
+        }
     }
 
     /** Updates the statistics after a move: played from the first move, and the win once. */
@@ -629,7 +669,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         var win: WinFacts? = null
         if (s.won && !s.winRecorded) {
             val before = statsStore.loadAll()
-            val record = statsStore.recordWin(s.ruleSet, s.tier, s.elapsedSeconds, s.moveCount, s.usedUndo, s.hintsUsed > 0)
+            val record = statsStore.recordWin(
+                s.ruleSet, s.tier, s.elapsedSeconds, s.moveCount, s.failedMoves, s.undos, s.usedUndo, s.hintsUsed > 0,
+            )
             val now = LocalDateTime.now()
             val lostStreak = extras.lostStreak(s.ruleSet)
             extras.recordWin(s.ruleSet, now)
@@ -669,7 +711,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             SavedGame(
                 s.seed, s.ruleSet, s.tier, game.moves, s.elapsedSeconds,
                 counted = s.counted, usedUndo = s.usedUndo, assisted = s.assisted, winRecorded = s.winRecorded,
-                hintsUsed = s.hintsUsed, restarts = s.restarts,
+                hintsUsed = s.hintsUsed, restarts = s.restarts, failedMoves = s.failedMoves,
+                undos = s.undos,
             ),
         )
     }

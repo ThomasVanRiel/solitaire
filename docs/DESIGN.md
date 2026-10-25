@@ -247,7 +247,16 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   Preferences open lazily, first accessed on `Dispatchers.IO`.
 - `StatsStore`: per variant and tier. The Statistics screen also has an "All games" chip: totals over every
   game and difficulty (`combinedStats`), the best streak of any one game, and a played/won table per game.
-  Fastest time and fewest moves aren't shown there, since they can't be compared across games. Hints shown are counted, and so are wins that used a hint ("won
+  Fastest time and fewest moves aren't shown there, since they can't be compared across games, and nor are
+  the averages. Each win adds its time, moves and failed moves to running totals per tier, with a count of
+  the wins totalled (`totalledWins`); the averages divide by that count, so wins from before 0.6.2, which
+  have no totals, don't pull them down. The screen shows them for the game and per tier ("Wins by
+  difficulty"). Undos, player Restarts and times stuck (each time the stuck banner comes up) are counted per
+  tier as they happen; the game also keeps its own undo count for the "undos per win" average. Time played
+  adds a game's clock when it is won, abandoned or restarted (Restart zeroes the clock), and never for a game
+  whose win is already recorded, so no second counts twice; the game in progress isn't in it yet. Days played,
+  the current run of days (0 once a day is skipped) and the longest run come from `ExtrasStore`, over all
+  games; before 0.6.2 only the run was kept, so the other two start from it. Hints shown are counted, and so are wins that used a hint ("won
   without hints" is won minus those, so wins from before hints existed count as without). A game counts
   from its first move. New game before winning is a loss
   and ends the streak. Restart is the same game but counts as using undo. Debug autoplay never counts.
@@ -265,7 +274,10 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
 - The game finishes itself when `Endgame.canFinish` says so (Klondike, Yukon, FreeCell).
 - Top bar: New game and Restart as text buttons; Undo, Hint and Statistics as small icon buttons drawn on a
   Canvas (no icon library), each with a content description. The second row has the deal (tap to share)
-  and the move count and clock. The win screen dims the board only: New game, Restart and Statistics stay
+  and the move count, failed moves (only once there is one) and clock. A failed move is a tap on a card
+  with no legal move, a drop that the rules refuse, or a Spider deal refused for an empty column; dropping a
+  card back on its own column or on a place that can't take a move at all isn't one. The count is per game,
+  saved with it, kept across Restart like hints, and shown on the win screen; it isn't in the statistics. The win screen dims the board only: New game, Restart and Statistics stay
   usable, while Undo and Hint are off once the game is won.
 - `ui/MoveAnimation`: 300 ms per move with a gentle ease-in, long ease-out curve (170 ms while the game
   plays itself; auto-finish pauses 200 ms between moves). Undo, Restart and New game are instant.

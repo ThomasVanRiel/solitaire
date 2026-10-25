@@ -41,13 +41,17 @@ import io.github.thomasvanriel.solitaire.engine.model.GameType
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.extras.Achievement
 import io.github.thomasvanriel.solitaire.extras.Achievements
+import io.github.thomasvanriel.solitaire.game.DayStats
 import io.github.thomasvanriel.solitaire.game.ModeStats
 import io.github.thomasvanriel.solitaire.game.TierStats
 import io.github.thomasvanriel.solitaire.game.combinedStats
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 @Composable
 fun StatsScreen(
     stats: Map<RuleSet, ModeStats>,
+    days: DayStats,
     unlocked: Set<String>,
     initialRuleSet: RuleSet,
     onReset: () -> Unit,
@@ -85,21 +89,44 @@ fun StatsScreen(
             )
             Spacer(Modifier.height(12.dp))
 
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SummaryLine("Played", mode.played.toString())
-                    SummaryLine("Won", mode.won.toString())
-                    SummaryLine("Win rate", percent(mode.won, mode.played))
-                    if (showAll) {
-                        SummaryLine("Best streak (one game)", mode.bestStreak.toString())
-                    } else {
-                        SummaryLine("Current streak", mode.currentStreak.toString())
-                        SummaryLine("Best streak", mode.bestStreak.toString())
-                    }
-                    SummaryLine("Won without undo", mode.wonWithoutUndo.toString())
-                    SummaryLine("Won without hints", mode.wonWithoutHints.toString())
-                    SummaryLine("Hints used", mode.hints.toString())
+            StatsCard {
+                SummaryLine("Played", mode.played.toString())
+                SummaryLine("Won", mode.won.toString())
+                SummaryLine("Win rate", percent(mode.won, mode.played))
+                if (showAll) {
+                    SummaryLine("Best streak (one game)", mode.bestStreak.toString())
+                } else {
+                    SummaryLine("Current streak", mode.currentStreak.toString())
+                    SummaryLine("Best streak", mode.bestStreak.toString())
                 }
+                SummaryLine("Time played", formatDuration(mode.playSeconds))
+            }
+            Spacer(Modifier.height(12.dp))
+            StatsCard {
+                SummaryLine("Won without undo", mode.wonWithoutUndo.toString())
+                SummaryLine("Won without hints", mode.wonWithoutHints.toString())
+                SummaryLine("Hints used", mode.hints.toString())
+                SummaryLine("Undos", mode.undos.toString())
+                SummaryLine("Restarts", mode.restarts.toString())
+                SummaryLine("Times stuck", mode.stuck.toString())
+            }
+            // Times and move counts only compare within one game.
+            val avg = mode.averages
+            if (!showAll && avg != null) {
+                Spacer(Modifier.height(12.dp))
+                StatsCard {
+                    SummaryLine("Average win time", formatSeconds(avg.seconds.roundToLong()))
+                    SummaryLine("Average moves per win", avg.moves.roundToInt().toString())
+                    SummaryLine("Average failed moves per win", oneDecimal(avg.failedMoves))
+                    SummaryLine("Average undos per win", oneDecimal(avg.undos))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            // Days are over every game, so they read the same in each view.
+            StatsCard {
+                SummaryLine("Days played", days.daysPlayed.toString())
+                SummaryLine("Days in a row", days.currentStreak.toString())
+                SummaryLine("Most days in a row", days.bestStreak.toString())
             }
             Spacer(Modifier.height(16.dp))
 
@@ -123,26 +150,39 @@ fun StatsScreen(
                     TableRow(listOf(name, m.played.toString(), m.won.toString(), percent(m.won, m.played)))
                 }
             } else {
-                TableRow(listOf("", "Played", "Won", "Win %", "Fastest", "Fewest"), header = true)
+                TableRow(listOf("", "Played", "Won", "Win %"), header = true)
                 HorizontalDivider()
                 for (tier in Tier.entries) {
                     val t = mode.tiers[tier] ?: TierStats()
+                    TableRow(listOf(tier.label, t.played.toString(), t.won.toString(), percent(t.won, t.played)))
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("Wins by difficulty", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                TableRow(listOf("", "Fastest", "Avg time", "Fewest", "Avg moves", "Avg failed"), header = true)
+                HorizontalDivider()
+                for (tier in Tier.entries) {
+                    val t = mode.tiers[tier] ?: TierStats()
+                    val avg = t.averages
                     TableRow(
                         listOf(
                             tier.label,
-                            t.played.toString(),
-                            t.won.toString(),
-                            percent(t.won, t.played),
                             if (t.bestTime < 0) "–" else formatSeconds(t.bestTime),
+                            avg?.let { formatSeconds(it.seconds.roundToLong()) } ?: "–",
                             if (t.fewestMoves < 0) "–" else t.fewestMoves.toString(),
+                            avg?.let { it.moves.roundToInt().toString() } ?: "–",
+                            avg?.let { oneDecimal(it.failedMoves) } ?: "–",
                         ),
                     )
                 }
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "Fewest = fewest moves in a win. Hints used counts every hint shown. A game counts as played from its first move; starting a new " +
-                    "game before winning ends the streak. Statistics stay on this device.",
+                "Fewest = fewest moves in a win. Averages are over wins. A failed move is one the rules refuse. " +
+                    "Hints used counts every hint shown. Time played adds a game's clock when it is won, left or " +
+                    "restarted. Time played, undos, restarts, times stuck and the averages count from version 0.6.2. " +
+                    "A day counts when a game is started on it. A game counts as played from its first move; starting " +
+                    "a new game before winning ends the streak. Statistics stay on this device.",
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(24.dp))
@@ -190,6 +230,13 @@ private fun AchievementRow(a: Achievement, earned: Boolean) {
 }
 
 @Composable
+private fun StatsCard(content: @Composable () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+    }
+}
+
+@Composable
 private fun SummaryLine(label: String, value: String) {
     Row(Modifier.fillMaxWidth()) {
         Text(label, modifier = Modifier.weight(1f))
@@ -207,11 +254,20 @@ private fun TableRow(cells: List<String>, header: Boolean = false) {
                 textAlign = if (i == 0) TextAlign.Start else TextAlign.End,
                 style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium,
                 fontWeight = if (header) FontWeight.Bold else null,
-                maxLines = 1,
+                // Header labels such as "Avg time" may wrap on a narrow screen.
+                maxLines = if (header) 2 else 1,
             )
         }
     }
 }
+
+/** "3 h 12 min", or "12 min" under an hour. */
+private fun formatDuration(seconds: Long): String {
+    val minutes = seconds / 60
+    return if (minutes < 60) "$minutes min" else "${minutes / 60} h ${minutes % 60} min"
+}
+
+private fun oneDecimal(x: Double): String = "%.1f".format(x)
 
 private fun percent(won: Int, played: Int): String = if (played == 0) "–" else "${(100.0 * won / played).toInt()}%"
 

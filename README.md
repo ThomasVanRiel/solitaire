@@ -57,6 +57,9 @@ game and statistics are kept.
   unhurriedly to their new place.
 - A calm, soft look: muted sage felt, warm linen cards and gentle fades instead of sudden pop-ups.
 - Unlimited undo, and a Restart button to replay the same deal from the start.
+- Failed moves are counted: tapping a card that has nowhere to go, dropping a card where it can't go, or
+  dealing in Spider with an empty column. The count shows next to the moves once there is one, and on the
+  win screen.
 - When the rest of the game is a formality (nothing face down, every column in order), it finishes itself.
 - The top row holds New game and Restart, then three icon buttons: Undo (a curved arrow), Hint (?) and
   Statistics (a bar chart). The icons are drawn in code.
@@ -77,7 +80,8 @@ game and statistics are kept.
   in the app's packs can be played. Sharing uses Android's share sheet, so the app still needs no network
   access.
 - Statistics per game variant and difficulty: games played and won, win rate, streaks, fastest win, fewest
-  moves, wins without undo or hints, and hints used, plus an *All games* view with the totals. They stay on
+  moves, average time, moves, failed moves and undos per win, time played, wins without undo or hints,
+  hints, undos, restarts and times stuck, and days played with the run of days in a row, plus an *All games* view with the totals. They stay on
   your phone.
 
 **A bit of silliness**
