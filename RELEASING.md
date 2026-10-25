@@ -53,3 +53,22 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 - Optionally regenerate bigger deal packs: `./gradlew :dealgen:run --args="--per-tier 2500"`.
   Then run `:engine:test`, which replays every shipped proof.
 - Tag the release in git.
+
+## 5. Publish the APK on GitHub
+
+The README's [Download](README.md#download) section links to the latest GitHub release, so each new release
+shows up there without editing the README.
+
+With the GitHub CLI (`gh auth login` once):
+
+```sh
+cp app/build/outputs/apk/release/app-release.apk solitaire-0.4.0.apk
+git tag v0.4.0 && git push origin v0.4.0
+gh release create v0.4.0 solitaire-0.4.0.apk --title "0.4.0" --generate-notes
+```
+
+Or on the website: the repository's **Releases** page, **Draft a new release**, pick or create the tag,
+drag the APK into the assets box and press **Publish release**.
+
+Only upload an APK signed with the release key (never the debug-key build), always with the same key, or
+updates won't install over the previous version.

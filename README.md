@@ -13,6 +13,13 @@ the game's own rules engine before it is dealt to you.
 
 No ads, no analytics, no accounts, and no network access (the app has no `INTERNET` permission).
 
+## Download
+
+Get the signed APK from the [latest release](https://github.com/ThomasVanRiel/solitaire/releases/latest)
+and open it on your phone (Android 8.0 or newer; allow installing apps from your browser or file manager
+when asked). The app is not on any app store. To update, install the newer APK over the old one; your saved
+game and statistics are kept.
+
 ## Screenshots
 
 | Klondike | Spider (2 suits) | Scorpion II |
