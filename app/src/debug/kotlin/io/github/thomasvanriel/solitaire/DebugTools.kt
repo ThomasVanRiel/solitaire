@@ -12,6 +12,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import io.github.thomasvanriel.solitaire.engine.model.Move
+import io.github.thomasvanriel.solitaire.extras.Achievements
+import io.github.thomasvanriel.solitaire.extras.Scorecards
 import io.github.thomasvanriel.solitaire.game.GameViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -26,9 +28,15 @@ import kotlinx.coroutines.launch
  *   (-S force-stops first: if the app is already open, Android only brings it to the front and drops the extras.)
  * - Screenshot mode, for README and store screenshots: `--ez hideDebugUi true` hides the Auto button, and
  *   `--ei stopAt N` makes the autoplay stop after N moves (so a mid-game position can be captured).
+ * - `--ez scorecards true` always shows the rare scorecards easter egg on the win screen.
+ * - `--es achievement night_owl` pops up that achievement (without unlocking it), to check the pop-up.
  */
 object DebugTools {
     private var hideDebugUi by mutableStateOf(false)
+    private var forceScorecards = false
+
+    /** Scores for the win screen when `--ez scorecards true` was given, otherwise null. */
+    fun forcedScorecards(seed: Long): List<String>? = if (forceScorecards) Scorecards.forced(seed) else null
 
     fun install() {
         StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build())
@@ -38,6 +46,15 @@ object DebugTools {
     fun handleIntent(owner: LifecycleOwner, intent: Intent?, vm: GameViewModel) {
         if (intent == null) return
         hideDebugUi = intent.getBooleanExtra("hideDebugUi", false)
+        forceScorecards = intent.getBooleanExtra("scorecards", false)
+        intent.getStringExtra("achievement")?.let { id ->
+            Achievements.byId(id)?.let { a ->
+                owner.lifecycleScope.launch {
+                    vm.state.first { !it.loading && it.game != null }
+                    vm.previewAchievement(a)
+                }
+            }
+        }
         if (!intent.getBooleanExtra("autoplay", false)) return
         val step = intent.getLongExtra("stepMs", 60L)
         val stopAt = intent.getIntExtra("stopAt", -1)

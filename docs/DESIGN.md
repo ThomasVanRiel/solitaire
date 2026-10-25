@@ -199,9 +199,22 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   sequence breaks (12% and 7% of a card height).
 - Tap sends a card to the best place (Klondike: foundation, then non-empty columns, then an empty column for
   a King; Spider/Scorpion: same-suit card, any card, empty column). Drag highlights legal targets.
+- Top bar: New game and Restart as text buttons; Undo, Hint and Statistics as small icon buttons drawn on a
+  Canvas (no icon library), each with a content description. The second row has the deal (tap to share)
+  and the move count and clock.
 - `ui/MoveAnimation`: 170 ms per move (70 ms while autoplaying). Undo, Restart and New game are instant.
 - `ui/FeltSurprise`: a faint swirl on the felt on about 1 deal in 25, chosen by a hash of the deal number.
-- Debug-only tools live in `app/src/debug/.../DebugTools.kt` (StrictMode, autoplay, screenshot mode); the
+- The fun bits (`extras/`, pure Kotlin, tested by `:extras:test`): `Fortunes` (win line), `Greetings`
+  (New game), `Quips` (stuck banner, leaving a game unwon, Restart), `Achievements` and `Scorecards`.
+  Notable moments (first wins, records, streaks, holidays) always get their line; otherwise a line about the
+  game sometimes, else a random one seeded by the deal number. A line is never the same as the last one of
+  its kind. `ExtrasStore` ("extras" preferences) keeps unlocked achievement ids, the counters the stats
+  don't have (weekend wins, days played in a row, games left unwon in a row, the streak a loss ended) and
+  the last line of each kind. Achievements are checked after a win, a hint and a game's first move; new ones
+  queue as pop-ups with no touch handling, so taps go through. Reset statistics also clears them.
+  Restarts per deal are saved with the game.
+- Debug-only tools live in `app/src/debug/.../DebugTools.kt` (StrictMode, autoplay, screenshot mode,
+  forced scorecards); the
   `release` source set has an empty `DebugTools`.
 
 ## Known issues

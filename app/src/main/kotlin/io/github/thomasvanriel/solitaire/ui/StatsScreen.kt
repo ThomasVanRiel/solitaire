@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -30,18 +31,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.thomasvanriel.solitaire.BuildConfig
 import io.github.thomasvanriel.solitaire.engine.difficulty.Tier
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
+import io.github.thomasvanriel.solitaire.extras.Achievement
+import io.github.thomasvanriel.solitaire.extras.Achievements
 import io.github.thomasvanriel.solitaire.game.ModeStats
 import io.github.thomasvanriel.solitaire.game.TierStats
 
 @Composable
 fun StatsScreen(
     stats: Map<RuleSet, ModeStats>,
+    unlocked: Set<String>,
     initialRuleSet: RuleSet,
     onReset: () -> Unit,
     onClose: () -> Unit,
@@ -106,6 +111,12 @@ fun StatsScreen(
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(24.dp))
+            val earned = Achievements.ALL.count { it.id in unlocked }
+            Text("Achievements ($earned of ${Achievements.ALL.size})", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            // Earned ones first; the rest are greyed out, with how to get them.
+            for (a in Achievements.ALL.sortedBy { it.id !in unlocked }) AchievementRow(a, a.id in unlocked)
+            Spacer(Modifier.height(24.dp))
             OutlinedButton(onClick = { confirmReset = true }) { Text("Reset statistics") }
             Spacer(Modifier.height(16.dp))
             Text("Version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
@@ -116,7 +127,7 @@ fun StatsScreen(
         AlertDialog(
             onDismissRequest = { confirmReset = false },
             title = { Text("Reset statistics?") },
-            text = { Text("All statistics for every game are deleted. This can't be undone.") },
+            text = { Text("All statistics and achievements for every game are deleted. This can't be undone.") },
             confirmButton = {
                 Button(onClick = {
                     confirmReset = false
@@ -125,6 +136,21 @@ fun StatsScreen(
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
         )
+    }
+}
+
+@Composable
+private fun AchievementRow(a: Achievement, earned: Boolean) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).alpha(if (earned) 1f else 0.4f),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(if (earned) "🏆" else "🔒", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(a.title, fontWeight = FontWeight.Bold)
+            Text(a.description, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 

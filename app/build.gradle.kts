@@ -17,8 +17,8 @@ android {
         applicationId = "io.github.thomasvanriel.solitaire"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
     }
 
     signingConfigs {
@@ -64,6 +64,7 @@ android {
 
 dependencies {
     implementation(project(":engine"))
+    implementation(project(":extras"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

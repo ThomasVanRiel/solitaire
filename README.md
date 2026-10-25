@@ -48,6 +48,8 @@ game and statistics are kept.
 - Tap a card to send it to the best place, or drag it; legal targets light up while you drag. Cards slide
   to their new place.
 - Unlimited undo, and a Restart button to replay the same deal from the start.
+- The top row holds New game and Restart, then three icon buttons: Undo (a curved arrow), Hint (?) and
+  Statistics (a bar chart). The icons are drawn in code.
 - **Hint** outlines a move that helps (turns a card over, plays a card from the stock, or leads to one).
   It is just a possible move, not the best one, so it never solves the deal for you.
 - When no move that helps is left anywhere, a message says the position can't be won any more and offers
@@ -66,6 +68,15 @@ game and statistics are kept.
   access.
 - Statistics per game variant and difficulty: games played and won, win rate, streaks, fastest win, fewest
   moves, wins without undo or hints, and hints used. They stay on your phone.
+
+**A bit of silliness**
+- A fortune-cookie line on the win screen: random (picked from the deal number, so a shared deal gets the
+  same one), or about the game you just played, a record, a streak, the time of day or a holiday.
+- A greeting in *New game* that depends on the time and the date.
+- Sarcastic, slightly dark quips when you're stuck, when you leave a game unwon, and when you restart.
+- 33 achievements, from *Beginner's Luck* to *Statistically Suspicious*. A small banner pops up when you
+  earn one (it lets taps through and goes away by itself); *Statistics* lists them all.
+- Very rarely, after a fast or tidy win, a few cards hold up judges' scores.
 
 Cards are drawn in code: no image assets.
 
@@ -99,6 +110,7 @@ deal number always gives the same deal.
 |---|---|
 | `engine/` | Pure Kotlin/JVM: cards, rules for all three games, shuffle, solvers, proof verifier, difficulty rater, deal pack format. No Android dependencies. |
 | `dealgen/` | Command-line tool that generates the verified deal packs. |
+| `extras/` | Pure Kotlin: win fortunes, greetings, stuck and loss quips, achievements. |
 | `app/` | The Android app (Jetpack Compose). |
 
 ## Building
@@ -107,6 +119,7 @@ Requirements: JDK 17 or newer, and the Android SDK (only for the app module).
 
 ```sh
 ./gradlew :engine:test          # engine tests, no device needed
+./gradlew :extras:test          # fortunes, quips and achievements
 ./gradlew :app:assembleDebug    # build the debug APK
 ./gradlew :app:installDebug     # install on a connected device or emulator
 ./gradlew :app:lint             # Android lint
@@ -178,7 +191,8 @@ adb shell am start -S -n io.github.thomasvanriel.solitaire/.MainActivity --ez au
 ```
 
 For screenshots, `--ez hideDebugUi true` hides the Auto button and `--ei stopAt N` stops the replay after
-N moves, so a mid-game position can be captured:
+N moves, so a mid-game position can be captured. `--ez scorecards true` always shows the rare scorecards
+on the win screen, and `--es achievement night_owl` pops up that achievement (without unlocking it):
 
 ```sh
 adb shell am start -S -n io.github.thomasvanriel.solitaire/.MainActivity \

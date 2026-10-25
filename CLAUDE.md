@@ -5,8 +5,8 @@ proven winnable. `README.md` covers features and building; `docs/DESIGN.md` cove
 difficulty rating, deal packs and app work.
 
 ## How to work
-- After a change, run `./gradlew :engine:test :app:assembleDebug :app:lint`, keep `docs/DESIGN.md` and the
-  README in step with the code, then make a git commit with a clear message.
+- After a change, run `./gradlew :engine:test :extras:test :app:assembleDebug :app:lint`, keep
+  `docs/DESIGN.md` and the README in step with the code, then make a git commit with a clear message.
 - Keep going on your own. Only stop and ask the owner when a tool or SDK is missing (say exactly what to
   install), or when something stays blocked after several real attempts to fix it.
 
@@ -27,9 +27,9 @@ If you're tempted to weaken this to make something faster or simpler, don't.
 - Don't push to a remote or publish anything unless the owner asks you to.
 
 ## Build environment
-- The agent may run in a jail without the Android SDK. Then it builds and tests `:engine` and `:dealgen`
-  itself, and the owner runs the `:app` builds on the host (output in `logs/`). `settings.gradle.kts` skips
-  `:app` when no SDK is found.
+- The agent may run in a jail without the Android SDK. Then it builds and tests `:engine`, `:extras` and
+  `:dealgen` itself, and the owner runs the `:app` builds on the host (output in `logs/`).
+  `settings.gradle.kts` skips `:app` when no SDK is found.
 - The host's adb server (127.0.0.1:5037) is reachable, so the agent can install APKs and take screenshots.
 - JDK: use `JAVA_HOME=/opt/android-studio/jbr` (`/usr/bin/java` has no `javac`).
 
@@ -41,7 +41,7 @@ If you're tempted to weaken this to make something faster or simpler, don't.
   (see "Debug tools" in the README). It must not be present in release builds.
 
 ## Commands
-- Engine tests (fast, no device needed): `./gradlew :engine:test`
+- Engine tests (fast, no device needed): `./gradlew :engine:test` (and `:extras:test` for the fun bits)
 - Build and install: `./gradlew :app:installDebug`
 - Generate deal packs: `./gradlew :dealgen:run --args="..."` (options in the README)
 - On Windows, use `gradlew.bat`.

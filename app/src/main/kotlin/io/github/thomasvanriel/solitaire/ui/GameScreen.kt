@@ -3,7 +3,15 @@ package io.github.thomasvanriel.solitaire.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,6 +27,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -26,11 +36,11 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -46,20 +56,32 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.thomasvanriel.solitaire.DebugTools
 import io.github.thomasvanriel.solitaire.engine.difficulty.Tier
 import io.github.thomasvanriel.solitaire.engine.model.GameType
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.engine.pack.DealCode
+import io.github.thomasvanriel.solitaire.extras.Achievement
 import io.github.thomasvanriel.solitaire.game.GameUiState
 import io.github.thomasvanriel.solitaire.game.GameViewModel
 import kotlinx.coroutines.delay
@@ -77,7 +99,8 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
 
     if (showStats) {
         val stats by vm.stats.collectAsStateWithLifecycle()
-        StatsScreen(stats, initialRuleSet = ui.ruleSet, onReset = vm::resetStats, onClose = { showStats = false })
+        val unlocked by vm.unlockedAchievements.collectAsStateWithLifecycle()
+        StatsScreen(stats, unlocked, initialRuleSet = ui.ruleSet, onReset = vm::resetStats, onClose = { showStats = false })
         return
     }
 
@@ -127,7 +150,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                     Text(notice, color = Color.White, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
                 }
             }
-            if (ui.stuck && !ui.won) StuckBanner(onUndo = vm::undo, onNewGame = { showNewGame = true })
+            if (ui.stuck && !ui.won) StuckBanner(ui.stuckLine, onUndo = vm::undo, onNewGame = { showNewGame = true })
         }
         // Let the last cards finish sliding before the win screen covers them.
         var winShown by remember { mutableStateOf(false) }
@@ -139,6 +162,9 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
             }
         }
         if (winShown && ui.won && !ui.busy) WinOverlay(ui, onNewGame = { showNewGame = true }, onShare = { showShare = true })
+        // On top of everything, and lets every tap through.
+        val popups by vm.achievementPopups.collectAsStateWithLifecycle()
+        AchievementPopup(popups.firstOrNull(), onShown = vm::achievementShown, modifier = Modifier.align(Alignment.TopCenter))
     }
 
     if (showShare) ShareDialog(ui, onDismiss = { showShare = false })
@@ -151,7 +177,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
             confirmButton = {
                 Button(onClick = {
                     showRestart = false
-                    vm.restart()
+                    vm.restartByPlayer()
                 }) { Text("Restart") }
             },
             dismissButton = { TextButton(onClick = { showRestart = false }) { Text("Cancel") } },
@@ -159,7 +185,9 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
     }
 
     if (showNewGame) {
+        val greeting = remember { vm.greeting() }
         NewGameDialog(
+            greeting = greeting,
             initialRuleSet = vm.lastRuleSet,
             initialTier = vm.lastTier,
             onPlayCode = { rs, seed ->
@@ -193,27 +221,20 @@ private fun TopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            // Four buttons share a phone's width, so they get less side padding than usual.
-            val pad = PaddingValues(horizontal = 6.dp)
+            // Two text buttons and three icon buttons share a phone's width.
+            val pad = PaddingValues(horizontal = 8.dp)
             val canHint = ui.game != null && !ui.busy && !ui.won && !ui.loading
-            Button(onClick = onNewGame, modifier = Modifier.weight(1.2f), contentPadding = pad) { Text("New game", maxLines = 1) }
+            Button(onClick = onNewGame, modifier = Modifier.weight(1.1f), contentPadding = pad) { Text("New game", maxLines = 1) }
             FilledTonalButton(onClick = onRestart, enabled = hasMoves, modifier = Modifier.weight(1f), contentPadding = pad) {
                 Text("Restart", maxLines = 1)
             }
-            FilledTonalButton(onClick = onUndo, enabled = hasMoves, modifier = Modifier.weight(1f), contentPadding = pad) {
-                Text("Undo", maxLines = 1)
+            IconTopButton("Undo", onUndo, enabled = hasMoves) { UndoIcon() }
+            IconTopButton("Hint", onHint, enabled = canHint) {
+                Text("?", fontWeight = FontWeight.Bold, fontSize = 20.sp)
             }
-            FilledTonalButton(onClick = onHint, enabled = canHint, modifier = Modifier.weight(1f), contentPadding = pad) {
-                Text("Hint", maxLines = 1)
-            }
+            IconTopButton("Statistics", onStats) { BarChartIcon() }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(
-                onClick = onStats,
-                contentPadding = PaddingValues(horizontal = 14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.7f)),
-            ) { Text("Statistics", maxLines = 1) }
             // Tap the deal to share its code. It gets the space left over, and is cut short if it must be.
             Box(Modifier.weight(1f)) {
                 TextButton(onClick = onShare, contentPadding = PaddingValues(horizontal = 4.dp)) {
@@ -244,32 +265,46 @@ private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit, onShare: () -> Un
         Modifier.fillMaxSize().background(Color(0x99000000)),
         contentAlignment = Alignment.Center,
     ) {
-        Card(Modifier.padding(32.dp)) {
-            Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("You won!", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Deal #${ui.seed} (${ui.ruleSet.label}, ${ui.tier.label})\n" +
-                        "${ui.moveCount} moves in ${formatTime(ui.elapsedSeconds)}",
-                    textAlign = TextAlign.Center,
-                )
-                if (ui.hintsUsed > 0) {
-                    Text(if (ui.hintsUsed == 1) "1 hint used" else "${ui.hintsUsed} hints used", textAlign = TextAlign.Center)
-                }
-                val record = ui.winRecord
-                if (record != null) {
-                    val news = buildList {
-                        add("Streak: ${record.streak}")
-                        if (record.newBestTime) add("New best time!")
-                        if (record.newFewestMoves) add("Fewest moves yet!")
-                    }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Room is kept for the scorecards while they show, so the win card doesn't jump when they go.
+            ui.scorecards?.let { Box(Modifier.height(80.dp)) { Scorecards(it) } }
+            Card(Modifier.padding(horizontal = 32.dp, vertical = 8.dp)) {
+                Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("You won!", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
-                    Text(news.joinToString(" · "), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onShare) { Text("Share deal") }
-                    Button(onClick = onNewGame) { Text("New game") }
+                    Text(
+                        "Deal #${ui.seed} (${ui.ruleSet.label}, ${ui.tier.label})\n" +
+                            "${ui.moveCount} moves in ${formatTime(ui.elapsedSeconds)}",
+                        textAlign = TextAlign.Center,
+                    )
+                    if (ui.hintsUsed > 0) {
+                        Text(if (ui.hintsUsed == 1) "1 hint used" else "${ui.hintsUsed} hints used", textAlign = TextAlign.Center)
+                    }
+                    val record = ui.winRecord
+                    if (record != null) {
+                        val news = buildList {
+                            add("Streak: ${record.streak}")
+                            if (record.newBestTime) add("New best time!")
+                            if (record.newFewestMoves) add("Fewest moves yet!")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(news.joinToString(" · "), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(onClick = onShare) { Text("Share deal") }
+                        Button(onClick = onNewGame) { Text("New game") }
+                    }
+                    ui.fortune?.let {
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontStyle = FontStyle.Italic,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -278,14 +313,17 @@ private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit, onShare: () -> Un
 
 /** Stays up while no move that helps is left, until the player undoes or starts again. */
 @Composable
-private fun StuckBanner(onUndo: () -> Unit, onNewGame: () -> Unit) {
+private fun StuckBanner(quip: String?, onUndo: () -> Unit, onNewGame: () -> Unit) {
     Surface(shape = MaterialTheme.shapes.medium, color = Color(0xF2212121)) {
         Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
             Text("No moves left that help", color = Color.White, fontWeight = FontWeight.Bold)
+            if (quip != null) {
+                Text(quip, color = Color.White, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic)
+            }
             Text(
                 "This position can't be won any more. Undo a few moves and try another way.",
                 color = Color.White.copy(alpha = 0.85f),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
             )
             Row(Modifier.align(Alignment.End)) {
                 TextButton(onClick = onNewGame) { Text("New game", color = Color.White) }
@@ -298,6 +336,7 @@ private fun StuckBanner(onUndo: () -> Unit, onNewGame: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NewGameDialog(
+    greeting: String,
     initialRuleSet: RuleSet,
     initialTier: Tier,
     onPlayCode: (RuleSet, Long) -> Unit,
@@ -313,6 +352,8 @@ private fun NewGameDialog(
         title = { Text("New game") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(greeting, style = MaterialTheme.typography.titleMedium, fontStyle = FontStyle.Italic)
+                Spacer(Modifier.height(8.dp))
                 Text(
                     "Every deal can be won. Each one comes with a winning sequence that the game's own " +
                         "rules have checked. You can't see the face-down cards, so you may still get " +
@@ -404,6 +445,130 @@ private fun ShareDialog(ui: GameUiState, onDismiss: () -> Unit) {
             }) { Text("Copy code") }
         },
     )
+}
+
+/** A small square button with a drawn icon; [label] is read out by screen readers. */
+@Composable
+private fun IconTopButton(label: String, onClick: () -> Unit, enabled: Boolean = true, icon: @Composable () -> Unit) {
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.width(48.dp).semantics { contentDescription = label },
+        contentPadding = PaddingValues(0.dp),
+    ) { icon() }
+}
+
+/** A curved arrow pointing back, drawn in code (no icon library). */
+@Composable
+private fun UndoIcon() {
+    val color = LocalContentColor.current
+    Canvas(Modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        val curve = Path().apply {
+            moveTo(0.86f * w, 0.86f * h)
+            cubicTo(0.86f * w, 0.52f * h, 0.66f * w, 0.36f * h, 0.36f * w, 0.36f * h)
+            lineTo(0.24f * w, 0.36f * h)
+        }
+        drawPath(curve, color, style = Stroke(width = 0.12f * w, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        val head = Path().apply {
+            moveTo(0.04f * w, 0.36f * h)
+            lineTo(0.36f * w, 0.10f * h)
+            lineTo(0.36f * w, 0.62f * h)
+            close()
+        }
+        drawPath(head, color)
+    }
+}
+
+/** Three bars, drawn in code (no icon library). */
+@Composable
+private fun BarChartIcon() {
+    val color = LocalContentColor.current
+    Canvas(Modifier.size(18.dp)) {
+        val bar = size.width / 4.6f
+        val gap = (size.width - 3 * bar) / 2
+        listOf(0.55f, 1f, 0.75f).forEachIndexed { i, h ->
+            drawRoundRect(
+                color,
+                topLeft = Offset(i * (bar + gap), size.height * (1 - h)),
+                size = Size(bar, size.height * h),
+                cornerRadius = CornerRadius(bar / 4),
+            )
+        }
+    }
+}
+
+/**
+ * A just-earned achievement, sliding in at the top for a few seconds. It has no touch handling, so taps go
+ * straight through to whatever is under it. [onShown] is called once it has slid away.
+ */
+@Composable
+private fun AchievementPopup(achievement: Achievement?, onShown: (Achievement) -> Unit, modifier: Modifier = Modifier) {
+    var shown by remember { mutableStateOf<Achievement?>(null) }
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(achievement) {
+        if (achievement == null) return@LaunchedEffect
+        shown = achievement
+        visible = true
+        delay(3000)
+        visible = false
+        delay(400) // let it slide away
+        onShown(achievement)
+    }
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+        enter = slideInVertically { -it } + fadeIn(),
+        exit = slideOutVertically { -it } + fadeOut(),
+    ) {
+        val a = shown ?: return@AnimatedVisibility
+        Row(
+            Modifier
+                .padding(12.dp)
+                .background(Color(0xF2212121), RoundedCornerShape(16.dp))
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("🏆", fontSize = 28.sp)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("Achievement: ${a.title}", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(a.description, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+/** The rare easter egg: three cards holding up judges' scores for a moment, then dropping out of sight. */
+@Composable
+private fun Scorecards(scores: List<String>, modifier: Modifier = Modifier) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(scores) {
+        visible = true
+        delay(2200)
+        visible = false
+    }
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = scaleIn() + fadeIn(),
+        exit = slideOutVertically { it } + fadeOut(),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            for (score in scores) {
+                Box(
+                    Modifier
+                        .size(width = 52.dp, height = 72.dp)
+                        .background(Color.White, RoundedCornerShape(6.dp))
+                        .border(1.dp, Color(0xFF9E9E9E), RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(score, color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                }
+            }
+        }
+    }
 }
 
 /** The rules in one or two sentences, for the New game dialog. */

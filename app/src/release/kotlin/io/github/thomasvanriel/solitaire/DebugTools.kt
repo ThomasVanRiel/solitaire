@@ -10,6 +10,9 @@ object DebugTools {
     fun install() {}
 
     @Suppress("UNUSED_PARAMETER")
+    fun forcedScorecards(seed: Long): List<String>? = null
+
+    @Suppress("UNUSED_PARAMETER")
     fun handleIntent(owner: LifecycleOwner, intent: Intent?, vm: GameViewModel) {}
 
     @Suppress("UNUSED_PARAMETER")

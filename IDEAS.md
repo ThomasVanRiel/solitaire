@@ -1,5 +1,7 @@
 # Silly ideas
 
+> Everything marked "Yes" below is built (version 0.5.0). The lines live in `extras/`.
+
 Small bits of fun that never get in the way of playing: nothing blocks a tap, slows a move or changes the
 game.
 

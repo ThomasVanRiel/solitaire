@@ -1,0 +1,176 @@
+package io.github.thomasvanriel.solitaire.extras
+
+import io.github.thomasvanriel.solitaire.engine.difficulty.Tier
+import io.github.thomasvanriel.solitaire.engine.model.GameType
+import io.github.thomasvanriel.solitaire.engine.model.RuleSet
+import java.time.LocalDateTime
+
+/** The game at the moment the player got stuck. */
+data class StuckFacts(
+    val ruleSet: RuleSet,
+    val tier: Tier,
+    val seed: Long,
+    val moves: Int,
+    val seconds: Long,
+    val usedUndo: Boolean,
+    val hints: Int,
+    /** Times the player has been stuck in this game, including now. */
+    val timesStuck: Int,
+    val streak: Int,
+    val now: LocalDateTime,
+)
+
+/** A played game, left unwon for a new one (it counts as a loss). */
+data class AbandonFacts(
+    val ruleSet: RuleSet,
+    val tier: Tier,
+    val seed: Long,
+    val moves: Int,
+    val seconds: Long,
+    /** The win streak this loss ended (0 if there was none). */
+    val lostStreak: Int,
+    /** Games left unwon in a row, including this one. */
+    val abandonedInARow: Int,
+    val now: LocalDateTime,
+)
+
+data class RestartFacts(
+    val seed: Long,
+    /** Times this deal has been restarted, including now. */
+    val restarts: Int,
+    val now: LocalDateTime,
+)
+
+/**
+ * Sarcastic, slightly dark lines for getting stuck, giving up and restarting. The darkness is aimed at the
+ * cards and the player's pride, never at real harm.
+ */
+object Quips {
+    fun stuck(f: StuckFacts, previous: String? = null): String {
+        val p = Picker(mix(f.seed, f.moves.toLong(), f.timesStuck.toLong(), 0x57L))
+        if (f.timesStuck >= 2 && p.chance(0.4)) p.fresh(listOf("Stuck again. Familiar here, isn't it?"), previous)?.let { return it }
+        val special = stuckSpecial(f)
+        if (special.isNotEmpty() && p.chance(0.4)) p.fresh(special, previous)?.let { return it }
+        if (Calendar.lateNight(f.now) && p.chance(0.4)) p.fresh(lateNight(f.now), previous)?.let { return it }
+        if (p.chance(0.25)) p.fresh(STUCK_BY_GAME.getValue(f.ruleSet.game), previous)?.let { return it }
+        return p.one(STUCK, previous)
+    }
+
+    internal fun stuckSpecial(f: StuckFacts): List<String> = buildList {
+        if (f.tier == Tier.EXPERT) add("Expert said what it said on the tin.")
+        if (f.tier == Tier.EASY) add("Stuck on Easy. We won't tell anyone.")
+        if (!f.usedUndo) add("No undo so far. That ends now, I'm afraid.")
+        if (f.hints > 0) add("You used ${f.hints} ${if (f.hints == 1) "hint" else "hints"} and still got here. Impressive, in a way.")
+        if (f.seconds > 30 * 60) add("${formatTime(f.seconds)} of your life, and this is where it led.")
+        if (f.moves < 20) add("Stuck after ${f.moves} moves. A personal best, of sorts.")
+        if (f.streak >= 3) add("Your streak of ${f.streak} is looking nervous.")
+    }
+
+    fun abandoned(f: AbandonFacts, previous: String? = null): String {
+        val p = Picker(mix(f.seed, f.moves.toLong(), f.abandonedInARow.toLong(), 0xABL))
+        if (f.lostStreak >= 10) p.fresh(listOf("A moment of silence for your streak of ${f.lostStreak}."), previous)?.let { return it }
+        if (f.lostStreak >= 2) p.fresh(listOf("Your streak of ${f.lostStreak} has died. It had a good life."), previous)?.let { return it }
+        if (f.abandonedInARow >= 3 && p.chance(0.6)) {
+            p.fresh(listOf("That's ${f.abandonedInARow} in a row. Is everything all right at home?"), previous)?.let { return it }
+        }
+        val special = buildList {
+            if (f.moves < 10) add("You barely said hello.")
+            if (f.seconds > 30 * 60) add("${formatTime(f.seconds)} spent, nothing to show for it. Classic.")
+            if (f.tier == Tier.EXPERT) add("Expert deals eat players like you for breakfast.")
+            if (f.tier == Tier.EASY) add("It was Easy. It said so right there.")
+            if (Calendar.lateNight(f.now)) add("Nothing good happens after midnight. Exhibit A: that game.")
+        }
+        if (special.isNotEmpty() && p.chance(0.5)) p.fresh(special, previous)?.let { return it }
+        return p.one(ABANDONED, previous)
+    }
+
+    fun restart(f: RestartFacts, previous: String? = null): String {
+        val p = Picker(mix(f.seed, f.restarts.toLong(), 0x5EL))
+        val bored = "Restart number ${f.restarts}. The cards are getting bored."
+        if (f.restarts >= 5) p.fresh(listOf("We've been here before, haven't we?", bored), previous)?.let { return it }
+        if (f.restarts >= 3) p.fresh(listOf(bored), previous)?.let { return it }
+        return p.one(RESTART, previous)
+    }
+
+    private fun lateNight(now: LocalDateTime): List<String> {
+        val time = formatClock(now.hour, now.minute)
+        return listOf(
+            "Stuck at $time. Bold use of your sleep.",
+            "It's $time. Even the cards want to go to bed.",
+            "Nothing good happens after midnight. Exhibit A: this game.",
+        )
+    }
+
+    private val STUCK = listOf(
+        "No moves left. Just you, the cards, and the silence.",
+        "It's winnable. Just not from here. Not by you. Not like this.",
+        "The cards have stopped talking to you.",
+        "This is the part of the film where the music goes quiet.",
+        "You have played yourself into a corner. A very tidy corner.",
+        "Somewhere, a few moves ago, you made a choice. It was wrong.",
+        "The deal was winnable. Was.",
+        "Every path from here leads nowhere. Undo is the only way out.",
+        "The face-down cards are laughing at you. Quietly. Face down.",
+        "Stuck. The solver would like a word.",
+        "The solver won this deal in a few milliseconds. Just saying.",
+        "Remember when you had options? Good times.",
+        "Congratulations, you've found a way to lose a winnable deal.",
+        "Plot twist: the problem was you.",
+        "The cards are sorted into a perfect monument to your mistakes.",
+        "You can't win from here, but you can stare at it for a while. Many do.",
+        "This is fine. (It is not fine.)",
+        "Your Kings have nowhere to go. They are kings of nothing.",
+        "Hope is a face-down card, and you've run out of those.",
+        "Abandon all hope, ye who moved the Seven there.",
+        "Stuck. Undo exists for people like you. That's a compliment. Mostly.",
+        "The deck has filed a complaint.",
+        "You were so close. No, you weren't.",
+        "Somewhere a computer is shaking its head.",
+        "It's not a dead end. It's a cul-de-sac with no exit.",
+        "In the end, we're all just cards waiting for a column.",
+    )
+
+    private val STUCK_BY_GAME = mapOf(
+        GameType.KLONDIKE to listOf(
+            "Seven columns, zero ideas.",
+            "The stock has nothing more to give. Neither, it seems, do you.",
+        ),
+        GameType.SPIDER to listOf(
+            "The spider has caught something. It's you.",
+            "Tangled in your own web.",
+            "Ten columns and not one of them likes you.",
+        ),
+        GameType.SCORPION to listOf(
+            "The scorpion stings. It's in its nature.",
+            "You put a King in the wrong column, didn't you.",
+        ),
+    )
+
+    private val ABANDONED = listOf(
+        "Walking away. The cards will remember this.",
+        "That deal will haunt you. Not literally. Probably.",
+        "Another deal goes into the drawer of things we don't talk about.",
+        "Running away is also a strategy.",
+        "The cards are going back in the box. In shame.",
+        "Okay. We'll pretend that never happened. The stats won't.",
+        "Rage quit detected. Your secret is safe. Except in the stats.",
+        "Gone, but not forgotten. Mostly forgotten.",
+        "A winnable deal, left to die alone.",
+        "Somewhere out there, that deal is still waiting for you.",
+        "You fold. Wrong card game, but okay.",
+        "That deal will be spoken of in hushed tones.",
+        "Fine. Be that way.",
+        "The deal wasn't the problem. Just saying.",
+    )
+
+    private val RESTART = listOf(
+        "Same cards, same you. Let's see how that goes.",
+        "Again. Because insanity is doing the same thing and expecting different results.",
+        "Back to the start. Do not pass Go.",
+        "The cards remember what you did last time.",
+        "Groundhog Day.",
+        "Once more, with feeling.",
+        "Restarting. The deck sighs.",
+        "Different choices this time, yes?",
+    )
+}

@@ -16,7 +16,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "solitaire"
 
-include(":engine", ":dealgen")
+include(":engine", ":dealgen", ":extras")
 
 // The Android app needs the Android SDK. On machines without one (for example a plain JVM box
 // that only runs engine tests), :app is left out so :engine and :dealgen still build.

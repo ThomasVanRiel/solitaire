@@ -15,6 +15,21 @@ import io.github.thomasvanriel.solitaire.engine.pack.DealCode
 import io.github.thomasvanriel.solitaire.engine.rules.Game
 import io.github.thomasvanriel.solitaire.engine.rules.Rules
 import io.github.thomasvanriel.solitaire.engine.shuffle.Deals
+import io.github.thomasvanriel.solitaire.DebugTools
+import io.github.thomasvanriel.solitaire.extras.AbandonFacts
+import io.github.thomasvanriel.solitaire.extras.Achievement
+import io.github.thomasvanriel.solitaire.extras.AchievementFacts
+import io.github.thomasvanriel.solitaire.extras.Achievements
+import io.github.thomasvanriel.solitaire.extras.Fortunes
+import io.github.thomasvanriel.solitaire.extras.GreetingFacts
+import io.github.thomasvanriel.solitaire.extras.Greetings
+import io.github.thomasvanriel.solitaire.extras.Quips
+import io.github.thomasvanriel.solitaire.extras.RestartFacts
+import io.github.thomasvanriel.solitaire.extras.Scorecards
+import io.github.thomasvanriel.solitaire.extras.StuckFacts
+import io.github.thomasvanriel.solitaire.extras.WinFacts
+import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -66,6 +81,16 @@ data class GameUiState(
     val hint: Move? = null,
     /** No move that helps is left: the game can't be won from here without undoing. */
     val stuck: Boolean = false,
+    /** Times the player restarted this deal. */
+    val restarts: Int = 0,
+    /** Times the player got stuck in this game. Not saved. */
+    val timesStuck: Int = 0,
+    /** The quip in the stuck banner. */
+    val stuckLine: String? = null,
+    /** The fortune on the win screen. Not saved. */
+    val fortune: String? = null,
+    /** The rare scorecards easter egg on the win screen, or null. Not saved. */
+    val scorecards: List<String>? = null,
 ) {
     val won: Boolean get() = game?.isWon == true
     val moveCount: Int get() = game?.moves?.size ?: 0
@@ -75,9 +100,20 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private val deals = DealRepository(app)
     private val store = SavedGameStore(app)
     private val statsStore = StatsStore(app)
+    private val extras = ExtrasStore(app)
 
     private val _stats = MutableStateFlow<Map<RuleSet, ModeStats>>(emptyMap())
     val stats: StateFlow<Map<RuleSet, ModeStats>> = _stats.asStateFlow()
+
+    private val _unlocked = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Ids of the achievements earned so far. */
+    val unlockedAchievements: StateFlow<Set<String>> = _unlocked.asStateFlow()
+
+    private val _popups = MutableStateFlow<List<Achievement>>(emptyList())
+
+    /** Achievements just earned, to pop up one after another. */
+    val achievementPopups: StateFlow<List<Achievement>> = _popups.asStateFlow()
 
     private val _state = MutableStateFlow(GameUiState())
     val state: StateFlow<GameUiState> = _state.asStateFlow()
@@ -115,8 +151,22 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (game == null || game.isWon || busy) return@collectLatest
             delay(300) // let a burst of moves (auto-finish, autoplay) settle first
             val advice = withContext(Dispatchers.Default) { MoveAdvisor.advise(game.state, game.ruleSet) }
-            if (advice is Advice.Stuck) _state.update { if (it.game === game && !it.busy) it.copy(stuck = true) else it }
+            if (advice is Advice.Stuck) markStuck(game)
         }
+    }
+
+    /** Shows the stuck banner, with a fresh quip. */
+    private fun markStuck(game: Game) {
+        val s = _state.value
+        if (s.game !== game || s.busy || s.stuck) return
+        val times = s.timesStuck + 1
+        val facts = StuckFacts(
+            s.ruleSet, s.tier, s.seed, s.moveCount, s.elapsedSeconds, s.usedUndo, s.hintsUsed, times,
+            streak = _stats.value[s.ruleSet]?.currentStreak ?: 0, now = LocalDateTime.now(),
+        )
+        val line = Quips.stuck(facts, extras.lastLine("stuck"))
+        extras.setLastLine("stuck", line)
+        _state.value = s.copy(stuck = true, timesStuck = times, stuckLine = line)
     }
 
     /**
@@ -139,8 +189,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     _state.value = now.copy(hint = advice.move, hintsUsed = now.hintsUsed + 1)
                     save()
                     refreshStats()
+                    if (!now.assisted) checkAchievements(null)
                 }
-                Advice.Stuck -> _state.value = now.copy(stuck = true)
+                Advice.Stuck -> markStuck(game)
                 Advice.Unknown -> showNotice("No hint found. Try moving some cards around.")
                 Advice.Won -> {}
             }
@@ -149,6 +200,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun restoreOrStart() {
         _stats.value = withContext(Dispatchers.IO) { statsStore.loadAll() }
+        _unlocked.value = withContext(Dispatchers.IO) {
+            extras.warmUp()
+            extras.unlocked
+        }
         val saved = withContext(Dispatchers.IO) { store.load() }
         if (saved != null) {
             val restored = withContext(Dispatchers.Default) {
@@ -163,7 +218,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 _state.value = GameUiState(
                     game, deal.seed, deal.ruleSet, deal.tier, saved.elapsedSeconds, loading = false,
                     counted = saved.counted, usedUndo = saved.usedUndo, assisted = saved.assisted,
-                    winRecorded = saved.winRecorded, hintsUsed = saved.hintsUsed,
+                    winRecorded = saved.winRecorded, hintsUsed = saved.hintsUsed, restarts = saved.restarts,
                 )
                 return
             }
@@ -173,10 +228,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun newGame(ruleSet: RuleSet, tier: Tier) {
-        abandonCurrent()
+        val quip = abandonCurrent()
         store.lastRuleSet = ruleSet
         store.lastTier = tier
-        viewModelScope.launch { startNewGame(ruleSet, tier) }
+        viewModelScope.launch {
+            startNewGame(ruleSet, tier)
+            quip?.let { showNotice(it, QUIP_MILLIS) }
+        }
     }
 
     /**
@@ -190,21 +248,76 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 showNotice("Deal ${DealCode.format(ruleSet, seed)} isn't in this version of the app")
                 return@launch
             }
-            abandonCurrent()
+            val quip = abandonCurrent()
             store.lastRuleSet = ruleSet
             store.lastTier = deal.tier
             start(deal)
+            quip?.let { showNotice(it, QUIP_MILLIS) }
         }
     }
 
-    /** Leaving a game that was played but not won counts as a loss (and ends the streak). */
-    private fun abandonCurrent() {
+    /**
+     * Leaving a game that was played but not won counts as a loss (and ends the streak).
+     * Returns a quip about it, to show once the next game is on screen.
+     */
+    private fun abandonCurrent(): String? {
         val s = _state.value
-        if (s.counted && !s.won && !s.assisted) {
-            statsStore.recordLoss(s.ruleSet)
-            refreshStats()
-        }
         scriptJob?.cancel()
+        if (!s.counted || s.won || s.assisted) return null
+        val lostStreak = statsStore.load(s.ruleSet).currentStreak
+        statsStore.recordLoss(s.ruleSet)
+        extras.recordAbandoned(s.ruleSet, lostStreak)
+        refreshStats()
+        val facts = AbandonFacts(
+            s.ruleSet, s.tier, s.seed, s.moveCount, s.elapsedSeconds, lostStreak, extras.abandonedInARow, LocalDateTime.now(),
+        )
+        val line = Quips.abandoned(facts, extras.lastLine("abandoned"))
+        extras.setLastLine("abandoned", line)
+        return line
+    }
+
+    /** The greeting for the New game dialog. */
+    fun greeting(): String {
+        val s = _state.value
+        val stats = _stats.value
+        val now = LocalDateTime.now()
+        return Greetings.pick(
+            GreetingFacts(
+                now,
+                firstGameEver = stats.isNotEmpty() && stats.values.sumOf { it.played } == 0,
+                daysSinceLastPlayed = extras.daysSinceLastPlayed(now.toLocalDate()),
+                leavingUnfinished = s.counted && !s.won,
+                streak = stats[store.lastRuleSet]?.currentStreak ?: 0,
+            ),
+        )
+    }
+
+    /** Pops up [a] without unlocking it (for the debug tools). */
+    fun previewAchievement(a: Achievement) {
+        _popups.update { it + a }
+    }
+
+    /** The popped-up achievement [a] has been shown. */
+    fun achievementShown(a: Achievement) {
+        _popups.update { it - a }
+    }
+
+    /** Unlocks the achievements earned so far (after a win, if [win] is set) and pops them up. */
+    private fun checkAchievements(win: WinFacts?) {
+        val all = statsStore.loadAll()
+        val facts = AchievementFacts(
+            wins = all.mapValues { (_, mode) -> mode.tiers.mapValues { it.value.won } },
+            winsWithoutHints = all.values.sumOf { it.wonWithoutHints },
+            totalHints = all.values.sumOf { it.hints },
+            weekendWins = extras.weekendWins,
+            dayStreak = extras.dayStreak,
+            win = win,
+        )
+        val earned = Achievements.newlyEarned(facts, _unlocked.value)
+        if (earned.isEmpty()) return
+        extras.unlock(earned.map { it.id })
+        _unlocked.update { it + earned.map { a -> a.id } }
+        _popups.update { it + earned }
     }
 
     private suspend fun startNewGame(ruleSet: RuleSet, tier: Tier) {
@@ -279,11 +392,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         play(Move.Draw)
     }
 
-    private fun showNotice(text: String) {
+    private fun showNotice(text: String, millis: Long = 2500) {
         noticeJob?.cancel()
         _state.update { it.copy(notice = text) }
         noticeJob = viewModelScope.launch {
-            delay(2500)
+            delay(millis)
             _state.update { it.copy(notice = null) }
         }
     }
@@ -440,6 +553,19 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         save()
     }
 
+    /** The Restart button: [restart], plus a quip about it. */
+    fun restartByPlayer() {
+        if (_state.value.game == null) return
+        restart()
+        val s = _state.value
+        val restarts = s.restarts + 1
+        _state.value = s.copy(restarts = restarts)
+        save()
+        val line = Quips.restart(RestartFacts(s.seed, restarts, LocalDateTime.now()), extras.lastLine("restart"))
+        extras.setLastLine("restart", line)
+        showNotice(line, QUIP_MILLIS)
+    }
+
     /** Marks the current game as played by the computer (debug autoplay), so it never counts in the statistics. */
     fun markAssisted() {
         _state.update { it.copy(assisted = true) }
@@ -448,6 +574,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun resetStats() {
         statsStore.reset()
+        extras.reset()
+        _unlocked.value = emptySet()
         _stats.value = RuleSet.ALL.associateWith { ModeStats() }
     }
 
@@ -458,20 +586,59 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Updates the statistics after a move: played from the first move, and the win once. */
     private fun afterMove() {
         val s = _state.value
-        if (s.assisted) return
+        if (s.assisted) {
+            // Not counted, but the win screen still gets a fortune (handy for screenshots).
+            if (s.won && s.fortune == null) {
+                val facts = WinFacts(
+                    s.ruleSet, s.tier, s.seed, s.elapsedSeconds, s.moveCount, solution.size, s.usedUndo, s.hintsUsed,
+                    s.restarts, streak = 0, now = LocalDateTime.now(),
+                )
+                _state.value = s.copy(fortune = Fortunes.pick(facts), scorecards = DebugTools.forcedScorecards(s.seed))
+            }
+            return
+        }
         var next = s
+        var newDay = false
         if (!s.counted && s.moveCount > 0) {
             statsStore.recordPlayed(s.ruleSet, s.tier)
+            extras.recordPlayed(LocalDate.now())
+            newDay = true
             next = next.copy(counted = true)
         }
+        var win: WinFacts? = null
         if (s.won && !s.winRecorded) {
+            val before = statsStore.loadAll()
             val record = statsStore.recordWin(s.ruleSet, s.tier, s.elapsedSeconds, s.moveCount, s.usedUndo, s.hintsUsed > 0)
-            next = next.copy(winRecorded = true, winRecord = record)
+            val now = LocalDateTime.now()
+            val lostStreak = extras.lostStreak(s.ruleSet)
+            extras.recordWin(s.ruleSet, now)
+            val mode = before.getValue(s.ruleSet)
+            val winsBefore = before.values.sumOf { it.won }
+            win = WinFacts(
+                s.ruleSet, s.tier, s.seed, s.elapsedSeconds, s.moveCount, solution.size, s.usedUndo, s.hintsUsed, s.restarts,
+                streak = record.streak,
+                lostStreak = lostStreak,
+                newBestTime = record.newBestTime,
+                newFewestMoves = record.newFewestMoves,
+                firstWinEver = winsBefore == 0,
+                firstWinInRuleSet = mode.won == 0,
+                firstWinInTier = (mode.tiers[s.tier]?.won ?: 0) == 0,
+                totalWins = winsBefore + 1,
+                totalPlayed = before.values.sumOf { it.played },
+                now = now,
+            )
+            val fortune = Fortunes.pick(win, extras.lastLine("fortune"))
+            extras.setLastLine("fortune", fortune)
+            next = next.copy(
+                winRecorded = true, winRecord = record, fortune = fortune,
+                scorecards = DebugTools.forcedScorecards(s.seed) ?: Scorecards.scores(win),
+            )
         }
         if (next !== s) {
             _state.value = next
             refreshStats()
         }
+        if (newDay || win != null) checkAchievements(win)
     }
 
     private fun save() {
@@ -481,7 +648,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             SavedGame(
                 s.seed, s.ruleSet, s.tier, game.moves, s.elapsedSeconds,
                 counted = s.counted, usedUndo = s.usedUndo, assisted = s.assisted, winRecorded = s.winRecorded,
-                hintsUsed = s.hintsUsed,
+                hintsUsed = s.hintsUsed, restarts = s.restarts,
             ),
         )
     }
@@ -489,5 +656,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         /** Hints may search further than the stuck check, since the player is waiting for an answer. */
         const val HINT_MAX_STATES = 40_000
+
+        /** Quips are longer than other notices, so they stay up a little longer. */
+        const val QUIP_MILLIS = 4500L
     }
 }
