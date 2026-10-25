@@ -9,7 +9,7 @@ game.
 |---|---|
 | Fortune line on the win screen (random, or based on stats and time) | Yes |
 | Greeting on New game, based on the time of day and date | Yes |
-| Silly achievements and titles in the stats screen | Yes |
+| Silly achievements: a small pop-up when earned, listed in the stats screen | Yes |
 | Cards holding up scorecards ("9.5, 9.7, 10") after a fast win | Yes, as a rare easter egg |
 | Other win animations (bouncing cards, confetti, Kings bowing, ...) | No |
 | Odd card faces, holiday card backs | No |
@@ -288,8 +288,13 @@ One line in the New game dialog, picked by time of day, sometimes by date. Never
 
 ## Achievements
 
-Shown in the stats screen only, with a short silly description. Never a popup during play; at most a
-small "New achievement" line on the win screen.
+Each one has a short silly description, and the stats screen lists them all (locked ones greyed out).
+
+When you earn one, it pops up as a small banner at the top of the screen with the name and description,
+like "🏆 Night Owl: won between midnight and 4 a.m.". It slides in, stays about 3 seconds and slides
+away. It never blocks the board: taps go through to the cards, and swiping it away dismisses it. Earned on
+a win, it pops up over the win screen; earned during play (like Phone a Friend), it waits until the next
+move has finished animating. If several are earned at once, they show one after another.
 
 | Achievement | How to get it |
 |---|---|
