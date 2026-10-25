@@ -111,6 +111,7 @@ deal number always gives the same deal.
 | `engine/` | Pure Kotlin/JVM: cards, rules for all three games, shuffle, solvers, proof verifier, difficulty rater, deal pack format. No Android dependencies. |
 | `dealgen/` | Command-line tool that generates the verified deal packs. |
 | `extras/` | Pure Kotlin: win fortunes, greetings, stuck and loss quips, achievements. |
+| `tools/` | `screenshot.sh`: plays a deal code to a given move on a device and saves a screenshot. |
 | `app/` | The Android app (Jetpack Compose). |
 
 ## Building
@@ -200,6 +201,10 @@ adb shell am start -S -n io.github.thomasvanriel.solitaire/.MainActivity \
 ```
 
 These tools live in the `debug` source set and are not in release builds.
+
+`tools/screenshot.sh CODE MOVES OUT.png` uses them to retake the README screenshots (for example
+`tools/screenshot.sh K1-6 70 screenshots/klondike.png`; `-1` plays to the win). `CLAUDE.md` lists the deal
+and move for each one.
 
 ## Contributing
 
