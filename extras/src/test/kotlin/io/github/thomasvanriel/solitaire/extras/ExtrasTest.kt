@@ -176,9 +176,9 @@ class ExtrasTest {
         assertTrue("purist" !in earned(win(tier = Tier.MEDIUM, usedUndo = false)))
         assertTrue("comeback" in earned(win(streak = 1).copy(lostStreak = 6)))
         assertTrue("comeback" !in earned(win(streak = 1).copy(lostStreak = 4)))
-        val million = AchievementFacts(mapOf(RuleSet.FREECELL to mapOf(Tier.EASY to 1_000_000)), 0, 0, 0, 1)
-        assertTrue("wins_1000000" in Achievements.newlyEarned(million, emptySet()).map { it.id })
-        assertTrue("wins_1000000" !in Achievements.newlyEarned(million.copy(wins = mapOf(RuleSet.FREECELL to mapOf(Tier.EASY to 999_999))), emptySet()).map { it.id })
+        val million = AchievementFacts(mapOf(RuleSet.FREECELL to mapOf(Tier.EASY to 10_000)), 0, 0, 0, 1)
+        assertTrue("wins_10000" in Achievements.newlyEarned(million, emptySet()).map { it.id })
+        assertTrue("wins_10000" !in Achievements.newlyEarned(million.copy(wins = mapOf(RuleSet.FREECELL to mapOf(Tier.EASY to 9_999))), emptySet()).map { it.id })
     }
 
     @Test
