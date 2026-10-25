@@ -42,6 +42,9 @@ object Achievements {
         a("wins_10", "Deck Hand", "Win 10 games.") { it.totalWins >= 10 },
         a("wins_100", "Card Shark", "Win 100 games.") { it.totalWins >= 100 },
         a("wins_1000", "Patience Itself", "Win 1,000 games. Go outside.") { it.totalWins >= 1000 },
+        a("wins_1000000", "Seriously?", "Win 1,000,000 games. At one a minute, that's nearly two years without sleep.") {
+            it.totalWins >= 1_000_000
+        },
         a("tourist", "Tourist", "Win every game type at least once.") { f -> RuleSet.ALL.all { f.winsIn(it) > 0 } },
         a("grand_tour", "Grand Tour", "Win every game type on every difficulty.") { f ->
             RuleSet.ALL.all { rs -> Tier.entries.all { t -> (f.wins[rs]?.get(t) ?: 0) > 0 } }

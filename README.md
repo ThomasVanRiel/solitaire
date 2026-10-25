@@ -92,7 +92,7 @@ game and statistics are kept.
 - A greeting in *New game* that depends on the time, the day of the week, the date and how long you've
   been away.
 - Sarcastic, slightly dark quips when you're stuck, when you leave a game unwon, and when you restart.
-- 54 achievements, from *Beginner's Luck* to *Statistically Suspicious*. A small banner pops up when you
+- 55 achievements, from *Beginner's Luck* to *Statistically Suspicious*. A small banner pops up when you
   earn one (it lets taps through and goes away by itself); *Statistics* lists them all.
 - Very rarely, after a fast or tidy win, a few cards hold up judges' scores.
 
