@@ -5,8 +5,8 @@ Signing keys are created and kept by the owner only. Never commit them, and neve
 ## 1. Create a release keystore (once)
 
 Run this on your own machine, **outside** the project folder, and keep the file and passwords safe (for
-example in a password manager, plus an offline backup). If you lose the key you can't update the app on
-Google Play (unless you use Play App Signing) or F-Droid reproducible builds.
+example in a password manager, plus an offline backup). If you lose the key, Android won't install a new
+version over the old one: you'd have to uninstall first, which deletes the saved game and statistics.
 
 ```sh
 mkdir -p ~/keys && chmod 700 ~/keys     # keytool does not create the folder
@@ -34,7 +34,7 @@ keyPassword=...
 
 ```sh
 ./gradlew :engine:test :app:lint :app:assembleRelease   # signed APK in app/build/outputs/apk/release/
-./gradlew :app:bundleRelease                            # AAB for Google Play
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
 Without `keystore.properties` the release APK is unsigned (`app-release-unsigned.apk`).
@@ -52,5 +52,4 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 - Bump `versionCode` and `versionName` in `app/build.gradle.kts`.
 - Optionally regenerate bigger deal packs: `./gradlew :dealgen:run --args="--per-tier 2500"`.
   Then run `:engine:test`, which replays every shipped proof.
-- Update the store text in `fastlane/metadata/android/en-US/`.
 - Tag the release in git.
