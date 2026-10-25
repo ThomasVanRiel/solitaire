@@ -54,7 +54,7 @@ object DifficultyRater {
 
     /**
      * Tier cut-offs on the heuristic player's wins, scaled to 30 playouts, per rule set. They were calibrated
-     * from 1,000 winnable deals per rule set so each tier gets plenty of deals (see PROGRESS.md, M3).
+     * from 1,000 winnable deals per rule set so each tier gets plenty of deals (see docs/DESIGN.md).
      * Expert means the heuristic player never won, although the solver proved the deal winnable.
      */
     fun tierFor(wins: Int, playouts: Int, ruleSet: RuleSet): Tier {

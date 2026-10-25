@@ -106,8 +106,8 @@ Requirements: JDK 17 or newer, and the Android SDK (only for the app module).
 
 The packs currently shipped hold 100 deals per difficulty per game variant (`--per-tier 100`).
 `--per-tier 2500` would take several hours on 8 threads (4-suit Spider and Scorpion II are the slow ones,
-because few of their deals are solved) and the packs would grow to about 6.4 MB in total (see "Open
-decisions" in `PROGRESS.md`). All options are listed under [Deal packs](#deal-packs).
+because few of their deals are solved) and the packs would grow to about 6.4 MB in total. All options
+are listed under [Deal packs](#deal-packs).
 
 If no Android SDK is found (`ANDROID_HOME`, or `sdk.dir` in `local.properties`), the `:app` module is
 skipped so that the engine and deal generator can still be built and tested.
@@ -124,7 +124,7 @@ Release builds (`./gradlew :app:assembleRelease`) are minified with R8. See `REL
 
 On a desktop JVM, about 84% of draw-1 deals and 77% of draw-3 deals are solved, with a median of a few
 milliseconds. Spider 1 and 2 suits solve almost always; 4-suit Spider and Scorpion II much less often (only
-solved deals are shipped). The full numbers are in `PROGRESS.md`.
+solved deals are shipped). The full numbers are in [`docs/DESIGN.md`](docs/DESIGN.md#benchmark).
 
 ## Deal packs
 
@@ -178,7 +178,7 @@ These tools live in the `debug` source set and are not in release builds.
 
 ## Contributing
 
-See `CONTRIBUTING.md`.
+See `CONTRIBUTING.md`, and [`docs/DESIGN.md`](docs/DESIGN.md) for how the engine, solvers and app work.
 
 ## License
 
