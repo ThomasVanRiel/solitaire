@@ -89,6 +89,12 @@ import kotlinx.coroutines.delay
 private val Felt = Color(0xFF1B5E20)
 private val FeltDark = Color(0xFF0F3D14)
 
+/** How much the win screen darkens what is behind it. */
+private const val WIN_DIM = 0.6f
+
+/** [c] under the win screen's black layer: the same as drawing it, so the shades match exactly. */
+private fun dimmed(c: Color): Color = Color(c.red * (1 - WIN_DIM), c.green * (1 - WIN_DIM), c.blue * (1 - WIN_DIM))
+
 @Composable
 fun GameScreen(vm: GameViewModel, dark: Boolean) {
     val ui by vm.state.collectAsStateWithLifecycle()
@@ -104,10 +110,23 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
         return
     }
 
+    // Let the last cards finish sliding before the win screen covers them.
+    var winShown by remember { mutableStateOf(false) }
+    LaunchedEffect(ui.won, ui.busy) {
+        winShown = false
+        if (ui.won && !ui.busy) {
+            delay(650)
+            winShown = true
+        }
+    }
+    val showWin = winShown && ui.won && !ui.busy
+    val felt = if (dark) FeltDark else Felt
     Box(
         Modifier
             .fillMaxSize()
-            .background(if (dark) FeltDark else Felt),
+            // On the win screen the felt around the board (behind the top bar, status bar and gesture bar) gets
+            // the same shade as the dimmed board, while the buttons stay bright.
+            .background(if (showWin) dimmed(felt) else felt),
     ) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             TopBar(
@@ -120,21 +139,12 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                 onShare = { showShare = true },
                 extra = { DebugTools.ExtraButtons(vm) },
             )
-            // Let the last cards finish sliding before the win screen covers them.
-            var winShown by remember { mutableStateOf(false) }
-            LaunchedEffect(ui.won, ui.busy) {
-                winShown = false
-                if (ui.won && !ui.busy) {
-                    delay(650)
-                    winShown = true
-                }
-            }
             val game = ui.game
             if (game == null || ui.loading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color.White) }
             } else {
                 // The win screen covers the board only, so the top bar stays usable.
-                Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().background(felt)) {
                     Board(
                         game = game,
                         enabled = !ui.busy && !ui.won,
@@ -148,7 +158,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                         modifier = Modifier.fillMaxSize().padding(top = 4.dp),
                         hint = ui.hint,
                     )
-                    if (winShown && ui.won && !ui.busy) WinOverlay(ui, onNewGame = { showNewGame = true }, onShare = { showShare = true })
+                    if (showWin) WinOverlay(ui, onNewGame = { showNewGame = true }, onShare = { showShare = true })
                 }
             }
         }
@@ -265,7 +275,7 @@ private fun TopBar(
 @Composable
 private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit, onShare: () -> Unit) {
     Box(
-        Modifier.fillMaxSize().background(Color(0x99000000)),
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = WIN_DIM)),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
