@@ -16,7 +16,7 @@ game.
 | Easter eggs you trigger yourself, special deal codes | No |
 | No-internet jokes (fake leaderboard, cloud sync) | No |
 | Developer jokes (credits, solver node counts) | No |
-| Stuck or loss messages | Not answered yet |
+| Stuck and loss messages, sarcastic and a bit dark | Yes |
 
 ## Rules for all of it
 
@@ -153,6 +153,117 @@ Thresholds are examples; tune them later.
 | 24–26 December | A festive win. The Kings are wearing tiny hats. |
 | 31 December | Last wins of the year. Go out on a high. |
 | Your birthday (only if a birthday field is ever added) | Happy birthday! The cards got you a present: a win. |
+
+## Stuck and loss messages
+
+Sarcastic and a bit dark. The darkness is aimed at the cards, the deck and the player's pride, never at
+real harm (no self-harm, illness or death of people). One line, shown with the existing notice, never
+covering the board.
+
+When they show:
+- **Stuck**: `MoveAdvisor` says `Stuck` ("no moves left"). The line goes with the notice that already
+  suggests undo.
+- **Abandoned**: starting a new game while this one was played but not won (counts as a loss).
+- **Restart**: the Restart button.
+- Not when the player has simply paused: no "you've been idle" nagging.
+
+### Stuck
+
+- No moves left. Just you, the cards, and the silence.
+- It's winnable. Just not from here. Not by you. Not like this.
+- The cards have stopped talking to you.
+- This is the part of the film where the music goes quiet.
+- You have played yourself into a corner. A very tidy corner.
+- Somewhere, three moves ago, you made a choice. It was wrong.
+- The deal was winnable. Was.
+- Every path from here leads nowhere. Undo is the only way out.
+- The face-down cards are laughing at you. Quietly. Face down.
+- Stuck. The solver would like a word.
+- The solver won this deal in a few milliseconds. Just saying.
+- Remember when you had options? Good times.
+- Congratulations, you've found the one way to lose a winnable deal.
+- Plot twist: the problem was you.
+- The cards are sorted into a perfect monument to your mistakes.
+- You can't win from here, but you can stare at it for a while. Many do.
+- This is fine. (It is not fine.)
+- Your Kings have nowhere to go. They are kings of nothing.
+- Hope is a face-down card. You've turned them all over.
+- Abandon all hope, ye who move the Seven there.
+- Stuck. Undo exists for people like you. That's a compliment. Mostly.
+- The deck has filed a complaint.
+- You were so close. No, you weren't.
+- Somewhere a computer is shaking its head.
+- It's not a dead end. It's a cul-de-sac with no exit.
+- In the end, we're all just cards waiting for a column.
+
+### Stuck, by game
+
+- Klondike: Seven columns, zero ideas.
+- Klondike: The stock has nothing more to give. Neither, it seems, do you.
+- Spider: The spider has caught something. It's you.
+- Spider: Tangled in your own web.
+- Spider: Ten columns and not one of them likes you.
+- Scorpion II: The scorpion stings. It's in its nature.
+- Scorpion II: You put a King in the wrong column, didn't you.
+
+### Stuck, based on the game
+
+| When | Line |
+|---|---|
+| Expert deal | Expert said what it said on the tin. |
+| Easy deal | Stuck on Easy. We won't tell anyone. |
+| No undo used yet | No undo so far. That ends now, I'm afraid. |
+| Hints used | You used {n} hints and still got here. Impressive, in a way. |
+| Over 30 minutes in | {time} of your life, and this is where it led. |
+| Very early in the game (under 20 moves) | Stuck after {moves} moves. A personal best, of sorts. |
+| Stuck again in the same game | Stuck again. Familiar here, isn't it? |
+| On a winning streak | Your streak of {n} is looking nervous. |
+
+### Abandoned (counts as a loss)
+
+- Walking away. The cards will remember this.
+- That deal will haunt you. Not literally. Probably.
+- Another deal goes into the drawer of things we don't talk about.
+- Running away is also a strategy.
+- The cards are going back in the box. In shame.
+- Okay. We'll pretend that never happened. The stats won't.
+- Rage quit detected. Your secret is safe. Except in the stats.
+- Gone, but not forgotten. Mostly forgotten.
+- A winnable deal, left to die alone.
+- Somewhere out there, that deal is still waiting for you.
+- You fold. Wrong card game, but okay.
+- This deal will be told about in hushed tones.
+- Fine. Be that way.
+- The deal wasn't the problem. Just saying.
+
+| When | Line |
+|---|---|
+| Streak ended | Your streak of {n} has died. It had a good life. |
+| Long streak ended (10+) | A moment of silence for your streak of {n}. |
+| Several abandoned in a row | That's {n} in a row. Is everything all right at home? |
+| Abandoned after under 10 moves | You barely said hello. |
+| Abandoned after over 30 minutes | {time} spent, nothing to show for it. Classic. |
+| Abandoned an Expert deal | Expert deals eat players like you for breakfast. |
+| Abandoned an Easy deal | It was Easy. It said so right there. |
+
+### Restart
+
+- Same cards, same you. Let's see how that goes.
+- Again. Because insanity is doing the same thing and expecting different results.
+- Back to the start. Do not pass Go.
+- The cards remember what you did last time.
+- Groundhog Day.
+- Once more, with feeling.
+- Restarting. The deck sighs.
+- Different choices this time, yes?
+- Restart number {n}. The cards are getting bored. (3rd restart or more of one deal)
+- We've been here before, haven't we? (5th restart or more)
+
+### Late at night (adds to the above, 00:00–04:59)
+
+- Stuck at {time of day}. Bold use of your sleep.
+- It's {time of day}. Even the cards want to go to bed.
+- Nothing good happens after midnight. Exhibit A: this game.
 
 ## New game greetings
 
