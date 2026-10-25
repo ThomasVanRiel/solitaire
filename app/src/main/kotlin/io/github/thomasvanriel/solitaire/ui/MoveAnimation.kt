@@ -1,6 +1,6 @@
 package io.github.thomasvanriel.solitaire.ui
 
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.lerp
 import io.github.thomasvanriel.solitaire.engine.model.Card
@@ -10,13 +10,16 @@ import io.github.thomasvanriel.solitaire.engine.model.Move
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.engine.rules.Rules
 
+/** A gentle start and a long, soft landing, so cards glide into place rather than snap. */
+private val Glide = CubicBezierEasing(0.35f, 0f, 0.15f, 1f)
+
 /** One card sliding from [from] to [to]. It starts moving at [delay] (a share of the whole animation). */
 class Flight(val card: Int, val from: Offset, val to: Offset, val delay: Float = 0f) {
     /** Where the card is at animation progress [t] (0 to 1). */
     fun at(t: Float, maxDelay: Float): Offset {
         val span = 1f - maxDelay
         val local = ((t - delay) / span).coerceIn(0f, 1f)
-        return lerp(from, to, FastOutSlowInEasing.transform(local))
+        return lerp(from, to, Glide.transform(local))
     }
 }
 

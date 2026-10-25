@@ -262,7 +262,12 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   Canvas (no icon library), each with a content description. The second row has the deal (tap to share)
   and the move count and clock. The win screen dims the board only: New game, Restart and Statistics stay
   usable, while Undo and Hint are off once the game is won.
-- `ui/MoveAnimation`: 170 ms per move (70 ms while autoplaying). Undo, Restart and New game are instant.
+- `ui/MoveAnimation`: 300 ms per move with a gentle ease-in, long ease-out curve (170 ms while the game
+  plays itself; auto-finish pauses 200 ms between moves). Undo, Restart and New game are instant.
+- `ui/Theme`: the calm look. Muted sage felt, linen card faces with terracotta and charcoal pips, a dusty
+  blue back, a faint shadow under each card, and a warm wood-and-cream Material colour scheme instead of
+  the bright defaults. The win screen, notices, the stuck banner and achievement pop-ups fade in and out
+  over `SOFT_FADE_MS` (600 ms) rather than popping.
 - `ui/FeltSurprise`: a faint swirl on the felt on about 1 deal in 25, chosen by a hash of the deal number.
 - The fun bits (`extras/`, pure Kotlin, tested by `:extras:test`): `Fortunes` (win line), `Greetings`
   (New game), `Quips` (stuck banner, leaving a game unwon, Restart), `Achievements` and `Scorecards`.

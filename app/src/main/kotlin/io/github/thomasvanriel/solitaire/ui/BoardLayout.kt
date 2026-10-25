@@ -68,7 +68,7 @@ class BoardLayout(
     val cardHeight: Float = cardWidth * ASPECT
     private val left: Float = (width - (slotsAcross * cardWidth + totalGaps * gap)) / 2f
     val cardSize = Size(cardWidth, cardHeight)
-    val corner: Float = cardWidth * 0.09f
+    val corner: Float = cardWidth * 0.11f
 
     private val topY = gap
     val tableauTop: Float = if (sideways) topY else topY + cardHeight + gap * 3

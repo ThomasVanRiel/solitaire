@@ -548,7 +548,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * Plays moves one at a time with a short pause, so the player can see them. Input is blocked meanwhile.
      * [nextMove] returns null when done.
      */
-    fun runScript(stepMillis: Long = 90, nextMove: () -> Move?) {
+    fun runScript(stepMillis: Long = 200, nextMove: () -> Move?) {
         scriptJob?.cancel()
         scriptJob = viewModelScope.launch {
             _state.update { it.copy(busy = true) }

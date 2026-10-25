@@ -52,8 +52,9 @@ game and statistics are kept.
 - Four difficulty levels per game: Easy, Medium, Hard and Expert.
 
 **Playing**
-- Tap a card to send it to the best place, or drag it; legal targets light up while you drag. Cards slide
-  to their new place.
+- Tap a card to send it to the best place, or drag it; legal targets light up while you drag. Cards glide
+  unhurriedly to their new place.
+- A calm, soft look: muted sage felt, warm linen cards and gentle fades instead of sudden pop-ups.
 - Unlimited undo, and a Restart button to replay the same deal from the start.
 - When the rest of the game is a formality (nothing face down, every column in order), it finishes itself.
 - The top row holds New game and Restart, then three icon buttons: Undo (a curved arrow), Hint (?) and

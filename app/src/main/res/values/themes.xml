@@ -1,5 +1,5 @@
 <resources>
     <style name="Theme.Solitaire" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowBackground">@color/felt</item>
     </style>
 </resources>

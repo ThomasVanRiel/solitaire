@@ -4,10 +4,14 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
@@ -57,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -86,14 +91,11 @@ import io.github.thomasvanriel.solitaire.game.GameUiState
 import io.github.thomasvanriel.solitaire.game.GameViewModel
 import kotlinx.coroutines.delay
 
-private val Felt = Color(0xFF1B5E20)
-private val FeltDark = Color(0xFF0F3D14)
-
 /** How much the win screen darkens what is behind it. */
-private const val WIN_DIM = 0.6f
+private const val WIN_DIM = 0.45f
 
-/** [c] under the win screen's black layer: the same as drawing it, so the shades match exactly. */
-private fun dimmed(c: Color): Color = Color(c.red * (1 - WIN_DIM), c.green * (1 - WIN_DIM), c.blue * (1 - WIN_DIM))
+/** [c] under a black layer of opacity [dim]: the same as drawing it, so the shades match exactly. */
+private fun dimmed(c: Color, dim: Float): Color = Color(c.red * (1 - dim), c.green * (1 - dim), c.blue * (1 - dim))
 
 @Composable
 fun GameScreen(vm: GameViewModel, dark: Boolean) {
@@ -115,18 +117,22 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
     LaunchedEffect(ui.won, ui.busy) {
         winShown = false
         if (ui.won && !ui.busy) {
-            delay(650)
+            delay(900)
             winShown = true
         }
     }
     val showWin = winShown && ui.won && !ui.busy
+    // The win screen dims the table slowly, and lifts the dim just as slowly for the next deal.
+    val dim by animateFloatAsState(if (showWin) WIN_DIM else 0f, tween(SOFT_FADE_MS), label = "winDim")
+    // The win card drifts up and fades in; it goes at once when a new deal starts.
+    val appear by animateFloatAsState(if (showWin) 1f else 0f, tween(if (showWin) SOFT_FADE_MS else 0), label = "winCard")
     val felt = if (dark) FeltDark else Felt
     Box(
         Modifier
             .fillMaxSize()
             // On the win screen the felt around the board (behind the top bar, status bar and gesture bar) gets
             // the same shade as the dimmed board, while the buttons stay bright.
-            .background(if (showWin) dimmed(felt) else felt),
+            .background(dimmed(felt, dim)),
     ) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             TopBar(
@@ -141,7 +147,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
             )
             val game = ui.game
             if (game == null || ui.loading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color.White) }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = OnFelt) }
             } else {
                 // The win screen covers the board only, so the top bar stays usable.
                 Box(Modifier.fillMaxSize().background(felt)) {
@@ -153,12 +159,18 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                         onDrop = { source, target -> vm.drop(source, target) },
                         legalTargets = vm::legalTargets,
                         seed = ui.seed,
-                        // Shorter while the game plays moves itself (auto-finish, debug autoplay).
-                        animationMillis = if (ui.busy) 70 else 170,
+                        // Unhurried, so the cards glide; a little quicker while the game plays moves
+                        // itself (auto-finish, debug autoplay).
+                        animationMillis = if (ui.busy) 170 else 300,
                         modifier = Modifier.fillMaxSize().padding(top = 4.dp),
                         hint = ui.hint,
                     )
-                    if (showWin) WinOverlay(ui, onNewGame = { showNewGame = true }, onShare = { showShare = true })
+                    if (dim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
+                    if (showWin) {
+                        Box(Modifier.fillMaxSize().graphicsLayer { alpha = appear; translationY = (1f - appear) * 24.dp.toPx() }) {
+                            WinOverlay(ui, onNewGame = { showNewGame = true }, onShare = { showShare = true })
+                        }
+                    }
                 }
             }
         }
@@ -167,13 +179,17 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val notice = ui.notice
-            if (notice != null) {
-                Surface(shape = MaterialTheme.shapes.medium, color = Color(0xE6212121)) {
-                    Text(notice, color = Color.White, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+            // Notices and the stuck banner fade in and out instead of popping.
+            var lastNotice by remember { mutableStateOf("") }
+            ui.notice?.let { lastNotice = it }
+            AnimatedVisibility(ui.notice != null, enter = softEnter, exit = softExit) {
+                Surface(shape = MaterialTheme.shapes.large, color = Bubble) {
+                    Text(lastNotice, color = OnFelt, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
                 }
             }
-            if (ui.stuck && !ui.won) StuckBanner(ui.stuckLine, onUndo = vm::undo, onNewGame = { showNewGame = true })
+            AnimatedVisibility(ui.stuck && !ui.won, enter = softEnter, exit = softExit) {
+                StuckBanner(ui.stuckLine, onUndo = vm::undo, onNewGame = { showNewGame = true })
+            }
         }
         // On top of everything, and lets every tap through.
         val popups by vm.achievementPopups.collectAsStateWithLifecycle()
@@ -216,6 +232,9 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
     }
 }
 
+private val softEnter = fadeIn(tween(SOFT_FADE_MS)) + expandVertically(tween(SOFT_FADE_MS))
+private val softExit = fadeOut(tween(SOFT_FADE_MS)) + shrinkVertically(tween(SOFT_FADE_MS))
+
 @Composable
 private fun TopBar(
     ui: GameUiState,
@@ -253,7 +272,7 @@ private fun TopBar(
                 TextButton(onClick = onShare, contentPadding = PaddingValues(horizontal = 4.dp)) {
                     Text(
                         "#${ui.seed} · ${ui.ruleSet.label} · ${ui.tier.label}",
-                        color = Color.White,
+                        color = OnFelt,
                         style = MaterialTheme.typography.labelLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -263,7 +282,7 @@ private fun TopBar(
             extra()
             Text(
                 "${ui.moveCount} moves · ${formatTime(ui.elapsedSeconds)}",
-                color = Color.White.copy(alpha = 0.85f),
+                color = OnFelt.copy(alpha = 0.85f),
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
                 softWrap = false,
@@ -274,10 +293,7 @@ private fun TopBar(
 
 @Composable
 private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit, onShare: () -> Unit) {
-    Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = WIN_DIM)),
-        contentAlignment = Alignment.Center,
-    ) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             // Room is kept for the scorecards while they show, so the win card doesn't jump when they go.
             ui.scorecards?.let { Box(Modifier.height(80.dp)) { Scorecards(it) } }
@@ -327,20 +343,20 @@ private fun WinOverlay(ui: GameUiState, onNewGame: () -> Unit, onShare: () -> Un
 /** Stays up while no move that helps is left, until the player undoes or starts again. */
 @Composable
 private fun StuckBanner(quip: String?, onUndo: () -> Unit, onNewGame: () -> Unit) {
-    Surface(shape = MaterialTheme.shapes.medium, color = Color(0xF2212121)) {
+    Surface(shape = MaterialTheme.shapes.large, color = Bubble) {
         Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
-            Text("No moves left that help", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("No moves left that help", color = OnFelt, fontWeight = FontWeight.SemiBold)
             if (quip != null) {
-                Text(quip, color = Color.White, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic)
+                Text(quip, color = OnFelt, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic)
             }
             Text(
                 "This position can't be won any more. Undo a few moves and try another way.",
-                color = Color.White.copy(alpha = 0.85f),
+                color = OnFelt.copy(alpha = 0.85f),
                 style = MaterialTheme.typography.bodySmall,
             )
             Row(Modifier.align(Alignment.End)) {
-                TextButton(onClick = onNewGame) { Text("New game", color = Color.White) }
-                TextButton(onClick = onUndo) { Text("Undo", color = Color.White, fontWeight = FontWeight.Bold) }
+                TextButton(onClick = onNewGame) { Text("New game", color = OnFelt) }
+                TextButton(onClick = onUndo) { Text("Undo", color = OnFelt, fontWeight = FontWeight.SemiBold) }
             }
         }
     }
@@ -524,30 +540,30 @@ private fun AchievementPopup(achievement: Achievement?, onShown: (Achievement) -
         if (achievement == null) return@LaunchedEffect
         shown = achievement
         visible = true
-        delay(3000)
+        delay(3500)
         visible = false
-        delay(400) // let it slide away
+        delay(SOFT_FADE_MS.toLong()) // let it slide away
         onShown(achievement)
     }
     AnimatedVisibility(
         visible = visible,
         modifier = modifier.windowInsetsPadding(WindowInsets.safeDrawing),
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut(),
+        enter = slideInVertically(tween(SOFT_FADE_MS)) { -it / 2 } + fadeIn(tween(SOFT_FADE_MS)),
+        exit = slideOutVertically(tween(SOFT_FADE_MS)) { -it / 2 } + fadeOut(tween(SOFT_FADE_MS)),
     ) {
         val a = shown ?: return@AnimatedVisibility
         Row(
             Modifier
                 .padding(12.dp)
-                .background(Color(0xF2212121), RoundedCornerShape(16.dp))
+                .background(Bubble, RoundedCornerShape(16.dp))
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("🏆", fontSize = 28.sp)
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("Achievement: ${a.title}", color = Color.White, fontWeight = FontWeight.Bold)
-                Text(a.description, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
+                Text("Achievement: ${a.title}", color = OnFelt, fontWeight = FontWeight.SemiBold)
+                Text(a.description, color = OnFelt.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
