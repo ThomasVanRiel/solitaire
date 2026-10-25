@@ -9,6 +9,7 @@ import io.github.thomasvanriel.solitaire.engine.pack.DealPack
 import io.github.thomasvanriel.solitaire.engine.rules.Rules
 import io.github.thomasvanriel.solitaire.engine.shuffle.Deals
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -80,6 +81,62 @@ class MoveAdvisorTest {
     @Test
     fun wonIsWon() {
         assertEquals(Advice.Won, MoveAdvisor.advise(pos("found: 13 13 13 13"), d1))
+    }
+
+    /** The Yukon position that once got a pointless hint (Ace down from its foundation, then back up). */
+    @Test
+    fun yukonFoundationCardsStayUp() {
+        // The Ace of spades could rest on the 2 of diamonds, but it stays up: nothing helps any more.
+        val s = pos(
+            """
+            found: 0 0 0 1
+            t1: 3C | 2D
+            t2: 4C | 9H
+            """,
+            RuleSet.YUKON,
+        )
+        assertFalse(Rules.isLegal(s, RuleSet.YUKON, Move.FoundationToTableau(3, 0)))
+        assertEquals(Advice.Stuck, MoveAdvisor.advise(s, RuleSet.YUKON))
+    }
+
+    /**
+     * Over many random positions of every game, a hint is always a legal move, and playing it and then going
+     * on (breadth first, without the search's tricks) really does reach progress beyond the position it was
+     * given for: never just a card taken down and put back up.
+     */
+    @Test
+    fun hintsLeadToRealProgress() {
+        val rng = io.github.thomasvanriel.solitaire.engine.shuffle.Xoshiro256.seeded(2025)
+        var hints = 0
+        for (rs in RuleSet.ALL) {
+            for (g in 0 until 12) {
+                var s = Deals.deal(g.toLong(), rs)
+                repeat(40) {
+                    val advice = MoveAdvisor.advise(s, rs)
+                    if (advice is Advice.Hint) {
+                        hints++
+                        assertTrue(Rules.isLegal(s, rs, advice.move), "$rs: illegal hint ${advice.move}")
+                        val next = Rules.apply(s, rs, advice.move)
+                        assertTrue(
+                            makesProgress(s, next, rs) || MoveAdvisor.helpfulMove(next, rs, baseline = s) != null ||
+                                MoveAdvisor.advise(next, rs) !is Advice.Stuck,
+                            "$rs: hint ${advice.move} leads nowhere from\n$s",
+                        )
+                        assertFalse(advice.move is Move.FoundationToTableau, "$rs: foundation cards never come back")
+                    }
+                    val moves = Rules.legalMoves(s, rs)
+                    if (moves.isEmpty()) return@repeat
+                    s = Rules.apply(s, rs, moves[rng.nextInt(moves.size)])
+                }
+            }
+        }
+        assertTrue(hints > 500, "only $hints hints checked")
+    }
+
+    private fun makesProgress(before: GameState, after: GameState, rs: RuleSet): Boolean {
+        fun down(s: GameState) = (0 until s.columns).sumOf { s.tabDown[it] }
+        return down(after) < down(before) || after.stockSize + after.wasteSize < before.stockSize + before.wasteSize ||
+            (!rs.hasStock || !rs.buildsFoundations) && after.foundationCount > before.foundationCount
     }
 
     /**

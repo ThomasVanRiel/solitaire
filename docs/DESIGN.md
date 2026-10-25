@@ -22,10 +22,13 @@ How the engine, solver, difficulty rating, deal packs and app work. For features
 
 ## Rules
 
+In every game a card on a foundation is out of play: it never comes back to the tableau. (Klondike and Yukon
+used to allow it; since version 0.6.1 no game does. `Move.FoundationToTableau` remains only so that old saved
+move lists still decode; a saved game that used it no longer replays, and a new deal is served.)
+
 ### Klondike (`DRAW_1_UNLIMITED` id 1, `DRAW_3_UNLIMITED` id 2)
 - 7 columns dealt 1..7, top card face up, 24 cards in the stock. Build down in alternating colours; any
-  face-up run moves. Only a King (or a run starting with one) goes into an empty column, also from a
-  foundation. Cards may come back from a foundation to the tableau.
+  face-up run moves. Only a King (or a run starting with one) goes into an empty column.
 - Draw-3 at the end of the stock draws whatever is left. A recycle turns the waste over, so the first card
   drawn comes first again. Recycling is unlimited; `RuleSet.custom(draw, maxRecycles)` supports a pass limit.
 - Foundations are indexed by suit (C, D, H, S), not by slot; the UI places them as it likes.
@@ -47,7 +50,7 @@ How the engine, solver, difficulty rating, deal packs and app work. For features
   face-up ones. All 52 cards are dealt.
 - Build down in alternating colours (Russian: in suit). Any face-up card moves together with everything on
   top of it, in order or not. Only a King (with what's on it) goes into an empty column. Foundations by suit,
-  Ace up; foundation cards may come back down (in Russian that never helps).
+  Ace up.
 - Russian is hard: only about 1 seed in 15 is winnable (an exact breadth-first search over `Rules` agrees with
   the solver on the ones it calls unsolvable).
 
@@ -56,7 +59,7 @@ How the engine, solver, difficulty rating, deal packs and app work. For features
   cells (`GameState.cells`, -1 = empty) holding one card each.
 - Build down in alternating colours; any card or run goes into an empty column. A run of n cards moves as
   one move when n ≤ (free cells + 1) × 2^(empty columns, not counting the target) (`Rules.maxRunMove`).
-  Foundations by suit, Ace up; foundation cards don't come back.
+  Foundations by suit, Ace up.
 - A card going into a cell takes the first empty one, so the move needs no cell index.
 
 ### Spider and Scorpion II
@@ -105,10 +108,10 @@ Budgets: node limit, time limit and cancel callback. Outcomes: `Solved(moves)`, 
   played, expanded into primitive `Draw`/`Recycle` moves in the solution. At most one recycle is simulated.
 - **Safe auto-moves**: Aces and Twos, or a card whose opposite-colour foundations both hold rank−1.
 - **Ordering**: foundation moves, moves that reveal a face-down card (more hidden first), moves that empty a
-  column, waste plays, useful partial runs, foundation-to-tableau.
+  column, waste plays, useful partial runs.
 - **Pruning**: Kings only into the first empty column, and a run already at the bottom of a column never
   moves to another empty column. A partial run moves only if the uncovered card can go up, or something
-  could then go on it. A foundation card comes down only if it isn't "safe" and something could go on it.
+  could then go on it.
   A position with no stock, waste or face-down cards is finished directly.
 
 ### Spider and Scorpion II (`RunGameSolver`)
@@ -125,10 +128,10 @@ Budgets: node limit, time limit and cancel callback. Outcomes: `Solved(moves)`, 
   every card (only the same-suit card one lower could ever rest on it, and that one is already up).
 - Ordering: foundation moves, reveals (more hidden first), emptying a column, cell to column (FreeCell),
   moving a card that doesn't rest on its proper card onto one that it does, a King or run into an empty column,
-  moves that uncover something useful, cell to an empty column, column to cell, foundation to column.
+  moves that uncover something useful, cell to an empty column, column to cell.
 - Pruning (can lose solutions, never invents them): only the first empty column is used, a whole column never
   moves into an empty one, a card resting on its proper card only moves if what it uncovers can go up or take
-  another card, and a foundation card only comes down if it isn't safe and something could go on it. Columns
+  another card. Columns
   and free cells are hashed as sums, so their order doesn't matter.
 
 ### Benchmark
@@ -206,7 +209,9 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   for one where a helpful move is legal. Results: `Hint(move)` (a helpful move, or the first step towards
   one), `Stuck` (none reachable: the position can't be won), `Unknown` (over the state budget) or `Won`.
 - Yukon and FreeCell have no stock, so a card going up to a foundation also helps (a win needs every card
-  to go up, so "stuck" stays correct). In FreeCell nothing is hidden and almost every position can be
+  to go up, so "stuck" stays correct). Progress is always measured against the player's position, not the
+  previous step of the search, so losing ground and winning it back never counts. (When Yukon still let
+  foundation cards come down, the hint once suggested taking a card down only to put it back up.) In FreeCell nothing is hidden and almost every position can be
   rearranged a lot, so the stuck check often runs out of states and says nothing.
 - Helpful moves at the current position are preferred in this order: a run comes off, a card turns over, a
   card leaves the stock/waste, a deal. It never searches for the best move, so a hint doesn't solve the game.
@@ -264,6 +269,10 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   usable, while Undo and Hint are off once the game is won.
 - `ui/MoveAnimation`: 300 ms per move with a gentle ease-in, long ease-out curve (170 ms while the game
   plays itself; auto-finish pauses 200 ms between moves). Undo, Restart and New game are instant.
+  `Board` works out a move's animation steps in the same composition that brings the new game, and draws the
+  first step at its start until the animation runs, so no frame shows the cards at their target (or a dropped
+  card back where the drag began). The step and its progress are plain state set together, not an
+  `Animatable` (whose `snapTo` suspends between them).
 - `ui/Theme`: the calm look. Muted sage felt, linen card faces with terracotta and charcoal pips, a dusty
   blue back, a faint shadow under each card, and a warm wood-and-cream Material colour scheme instead of
   the bright defaults. The win screen, notices, the stuck banner and achievement pop-ups fade in and out

@@ -75,9 +75,6 @@ class RuleSet private constructor(
      */
     val buildsFoundations: Boolean get() = game == GameType.KLONDIKE || game == GameType.YUKON || game == GameType.FREECELL
 
-    /** A foundation's top card may come back to the tableau (Klondike, Yukon). */
-    val foundationToTableau: Boolean get() = game == GameType.KLONDIKE || game == GameType.YUKON
-
     /** Only a King (with whatever is on it) may go into an empty column. */
     val kingsOnlyInEmpty: Boolean get() = game == GameType.KLONDIKE || game == GameType.SCORPION || game == GameType.YUKON
 

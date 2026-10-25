@@ -104,10 +104,7 @@ object Rules {
         GameType.FREECELL -> freeCellMoves(s, rs, out)
     }
 
-    /**
-     * Yukon: to the foundations, then any face-up card with everything on top of it onto another column,
-     * then foundation cards back down.
-     */
+    /** Yukon: to the foundations, then any face-up card with everything on top of it onto another column. */
     private fun yukonMoves(s: GameState, rs: RuleSet, out: IntArray): Int {
         var n = 0
         val cols = s.columns
@@ -124,12 +121,6 @@ object Rules {
                     if (to != from && fitsOnColumn(s, rs, card, to)) out[n++] = Move.encode(Move.TYPE_T2T, from, to, size - i)
                 }
             }
-        }
-        for (suit in 0 until 4) {
-            val f = s.found[suit]
-            if (f == 0) continue
-            val card = Card.of(suit, f - 1)
-            for (to in 0 until cols) if (fitsOnColumn(s, rs, card, to)) out[n++] = Move.encode(Move.TYPE_F2T, suit, to, 0)
         }
         return n
     }
@@ -240,13 +231,7 @@ object Rules {
             }
         }
 
-        // Foundation back to tableau
-        for (suit in 0 until 4) {
-            val f = s.found[suit]
-            if (f == 0) continue
-            val card = Card.of(suit, f - 1)
-            for (to in 0 until cols) if (fitsOnColumn(s, card, to)) out[n++] = Move.encode(Move.TYPE_F2T, suit, to, 0)
-        }
+        // A card on a foundation is out of play: it never comes back.
 
         // Stock
         if (s.stockSize > 0) out[n++] = Move.encode(Move.TYPE_DRAW, 0, 0, 0)

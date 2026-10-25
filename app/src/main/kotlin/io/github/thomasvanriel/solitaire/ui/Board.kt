@@ -1,6 +1,6 @@
 package io.github.thomasvanriel.solitaire.ui
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -62,7 +63,7 @@ fun Board(
     // Animation: the game last shown, the step being animated, its progress, and where a drop let go.
     var shownGame by remember { mutableStateOf<Game?>(null) }
     var animation by remember { mutableStateOf<MoveAnimation?>(null) }
-    val progress = remember { Animatable(1f) }
+    var progress by remember { mutableFloatStateOf(1f) }
     var dropAt by remember { mutableStateOf<Offset?>(null) }
 
     BoxWithConstraints(modifier) {
@@ -70,33 +71,28 @@ fun Board(
         val widthPx = with(density) { maxWidth.toPx() }
         val heightPx = with(density) { maxHeight.toPx() }
 
-        LaunchedEffect(game) {
-            val prev = shownGame
-            shownGame = game
-            val drop = dropAt
-            dropAt = null
-            val from = prev?.moves?.size ?: 0
-            val to = game.moves.size
-            // Only animate a few moves played forward from what was on screen.
-            val forward = prev != null && prev.initial === game.initial && to > from && to - from <= 4 &&
-                game.moves.subList(0, from) == prev.moves
-            if (!forward) {
-                animation = null
-                return@LaunchedEffect
-            }
-            for (i in from until to) {
-                val step = MoveAnimation.of(
-                    game.stateAt(i), game.stateAt(i + 1), game.moves[i], ruleSet, widthPx, heightPx,
-                    dropAt = if (i == from) drop else null, baseMs = animationMillis,
-                ) ?: continue
-                animation = step
-                progress.snapTo(0f)
-                progress.animateTo(1f, tween(step.durationMs, easing = LinearEasing))
-            }
-            animation = null
+        // The steps from what is on screen to [game], worked out in the same composition that brings the new
+        // game, so its very first frame already shows the cards at their starting places (never at the target).
+        val steps = remember(game, widthPx, heightPx) {
+            animationSteps(shownGame, game, widthPx, heightPx, dropAt, animationMillis)
         }
 
-        val anim = animation
+        LaunchedEffect(game) {
+            dropAt = null
+            for (step in steps) {
+                // Plain state writes with no suspension in between: the step and its start land in one frame.
+                progress = 0f
+                animation = step
+                shownGame = game
+                animate(0f, 1f, animationSpec = tween(step.durationMs, easing = LinearEasing)) { v, _ -> progress = v }
+            }
+            animation = null
+            shownGame = game
+        }
+
+        // Until the effect starts, show the first step at its start (or the new position if nothing moves).
+        val pending = shownGame !== game
+        val anim = if (pending) steps.firstOrNull() else animation
         val state = anim?.after ?: game.state
         val layout = BoardLayout(widthPx, heightPx, state, ruleSet)
         // Taps and drags always work on the real (final) position.
@@ -159,7 +155,7 @@ fun Board(
             val d = drag
             val hidden: Source? = d?.source
             val gone = anim?.hidden
-            val t = progress.value
+            val t = if (pending) 0f else progress // read while drawing, so a frame only redraws
             drawFeltSurprise(seed, l)
             with(painter) {
                 // Stock (Spider shows one card per deal left)
@@ -193,9 +189,8 @@ fun Board(
                     GameType.KLONDIKE, GameType.YUKON, GameType.FREECELL -> for (suit in 0 until 4) {
                         val r = l.foundationRect(suit)
                         val f = state.found[suit]
-                        val draggingThis = hidden is Source.Foundation && hidden.suit == suit
                         val flying = gone?.foundationSuit == suit
-                        val shown = f - (if (draggingThis) 1 else 0) - (if (flying) 1 else 0)
+                        val shown = f - (if (flying) 1 else 0)
                         if (shown > 0) drawFaceUp(Card.of(suit, shown - 1), r.topLeft, l.cardSize, l.corner)
                         else drawFoundationSlot(suit, r.topLeft, l.cardSize, l.corner)
                     }
@@ -245,8 +240,8 @@ fun Board(
                 // Drag: highlight legal targets, then draw the dragged cards on top.
                 if (d != null) {
                     val suit = Card.suit(d.cards.first())
-                    for (t in d.targets) {
-                        val r = l.targetRect(t, suit)
+                    for (target in d.targets) {
+                        val r = l.targetRect(target, suit)
                         drawHighlight(r.topLeft, l.cardSize, l.corner)
                     }
                     d.cards.forEachIndexed { k, card ->
@@ -263,10 +258,31 @@ fun Board(
     }
 }
 
+/** The animation steps from [prev] to [game]: only for a few moves played forward from what was on screen. */
+private fun animationSteps(
+    prev: Game?,
+    game: Game,
+    width: Float,
+    height: Float,
+    dropAt: Offset?,
+    baseMs: Int,
+): List<MoveAnimation> {
+    if (prev == null || prev === game) return emptyList()
+    val from = prev.moves.size
+    val to = game.moves.size
+    val forward = prev.initial === game.initial && to > from && to - from <= 4 && game.moves.subList(0, from) == prev.moves
+    if (!forward) return emptyList()
+    return (from until to).mapNotNull { i ->
+        MoveAnimation.of(
+            game.stateAt(i), game.stateAt(i + 1), game.moves[i], game.ruleSet, width, height,
+            dropAt = if (i == from) dropAt else null, baseMs = baseMs,
+        )
+    }
+}
+
 private fun cardsOf(s: GameState, source: Source): List<Int> = when (source) {
     Source.Waste -> listOf(s.waste[s.wasteSize - 1])
     is Source.Column -> (source.index until s.tabSize[source.col]).map { s.tab[source.col][it] }
-    is Source.Foundation -> listOf(Card.of(source.suit, s.found[source.suit] - 1))
     is Source.Cell -> listOf(s.cells[source.index])
 }
 

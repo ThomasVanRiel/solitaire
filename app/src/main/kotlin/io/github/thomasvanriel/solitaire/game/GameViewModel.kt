@@ -48,8 +48,6 @@ import kotlinx.coroutines.withContext
 sealed class Source {
     data object Waste : Source()
     data class Column(val col: Int, val index: Int) : Source()
-    data class Foundation(val suit: Int) : Source()
-
     /** FreeCell: the card in free cell [index]. */
     data class Cell(val index: Int) : Source()
 }
@@ -469,10 +467,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     Target.Cell -> if (count == 1) Move.TableauToCell(source.col) else null
                 }
             }
-            is Source.Foundation -> when (target) {
-                is Target.Column -> Move.FoundationToTableau(source.suit, target.col)
-                Target.Foundation, Target.Cell -> null
-            }
             is Source.Cell -> when (target) {
                 Target.Foundation -> Move.CellToFoundation(source.index)
                 is Target.Column -> Move.CellToTableau(source.index, target.col)
@@ -496,7 +490,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 val (onCards, intoEmpty) = toColumns.partition { s.tabSize[it.to] > 0 }
                 toFoundation + onCards + toCell + intoEmpty
             }
-            is Source.Foundation -> columns.map { Move.FoundationToTableau(source.suit, it) }
             is Source.Cell -> listOf<Move>(Move.CellToFoundation(source.index)) + columns.map { Move.CellToTableau(source.index, it) }
         }
     }

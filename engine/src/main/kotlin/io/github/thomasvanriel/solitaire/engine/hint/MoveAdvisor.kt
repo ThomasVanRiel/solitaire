@@ -54,7 +54,7 @@ object MoveAdvisor {
         }
         while (queue.isNotEmpty()) {
             val (s, first) = queue.removeFirst()
-            if (Rules.isWon(s) || helpfulMove(s, rs) != null) return Advice.Hint(first)
+            if (Rules.isWon(s) || helpfulMove(s, rs, baseline = start) != null) return Advice.Hint(first)
             if (seen.size > maxStates) return Advice.Unknown
             for (m in Rules.legalMoves(s, rs)) {
                 val next = Rules.apply(s, rs, m)
@@ -64,12 +64,17 @@ object MoveAdvisor {
         return Advice.Stuck
     }
 
-    /** A helpful move legal in [s], if any: turning a card over first, then playing a card, then dealing. */
-    fun helpfulMove(s: GameState, rs: RuleSet): Move? {
+    /**
+     * A helpful move legal in [s], if any: turning a card over first, then playing a card, then dealing.
+     * Progress is measured against [baseline] (the player's position), not against [s], so a search step that
+     * loses ground and wins it back never counts as progress. (Foundation cards can't come back down in any
+     * game now, so this can't happen today; it guards the stuck check if a rule ever allows it again.)
+     */
+    fun helpfulMove(s: GameState, rs: RuleSet, baseline: GameState = s): Move? {
         var best: Move? = null
         var bestRank = Int.MAX_VALUE
         for (m in Rules.legalMoves(s, rs)) {
-            val rank = helpRank(s, Rules.apply(s, rs, m), rs) ?: continue
+            val rank = helpRank(baseline, Rules.apply(s, rs, m), rs) ?: continue
             if (rank < bestRank) {
                 best = m
                 bestRank = rank
@@ -78,7 +83,12 @@ object MoveAdvisor {
         return best
     }
 
-    /** How a move from [before] to [after] helps (lower is shown first), or null if it doesn't. */
+    /**
+     * How reaching [after] from [before] helps (lower is shown first), or null if it doesn't. Face-down cards,
+     * the stock and (Spider, Scorpion) the cards taken off only ever go one way, so they compare the same
+     * against any earlier position; the Yukon and FreeCell foundations don't, which is why [helpfulMove]
+     * takes a baseline.
+     */
     private fun helpRank(before: GameState, after: GameState, rs: RuleSet): Int? = when {
         after.foundationCount > before.foundationCount && !rs.buildsFoundations -> 0 // a run comes off
         faceDown(after) < faceDown(before) -> 1

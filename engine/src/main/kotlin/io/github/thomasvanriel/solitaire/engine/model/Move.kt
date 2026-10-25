@@ -4,8 +4,9 @@ package io.github.thomasvanriel.solitaire.engine.model
  * A single move. Columns are 0-based. Suits use [Card]'s numbering.
  *
  * In Spider and Scorpion, [Draw] deals from the stock onto the columns, and [TableauToFoundation] takes a
- * complete King-to-Ace run off a column. The waste moves are Klondike only, foundation-to-tableau is
- * Klondike and Yukon, and the free-cell moves are FreeCell only.
+ * complete King-to-Ace run off a column. The waste moves are Klondike only and the free-cell moves are
+ * FreeCell only. [FoundationToTableau] is legal in no game any more (a card on a foundation is out of play);
+ * it stays so that old saved move lists still decode.
  *
  * Every move has a compact [code] that fits in 17 bits:
  * bits 0-2 type, `a` in bits 3-5 (low) and 13 (high), `b` in bits 6-8 and 14, `c` in bits 9-12 and 15-16.

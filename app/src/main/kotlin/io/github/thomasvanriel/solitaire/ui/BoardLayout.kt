@@ -256,11 +256,7 @@ class BoardLayout(
     fun hitTest(p: Offset): Hit? {
         if (ruleSet.hasStock && stockHitRect.contains(p)) return Hit.Stock
         if (game == GameType.KLONDIKE) wasteTopRect()?.let { if (it.contains(p)) return Hit.Card(Source.Waste) }
-        if (ruleSet.foundationToTableau) {
-            for (suit in 0 until 4) {
-                if (foundationRect(suit).contains(p) && state.found[suit] > 0) return Hit.Card(Source.Foundation(suit))
-            }
-        }
+        // Foundation cards are out of play, so they can't be picked up.
         for (k in state.cells.indices) {
             if (state.cells[k] >= 0 && cellRect(k).contains(p)) return Hit.Card(Source.Cell(k))
         }
@@ -290,7 +286,6 @@ class BoardLayout(
     fun sourceOffset(source: Source): Offset = when (source) {
         Source.Waste -> wastePositions().last().second
         is Source.Column -> cardOffset(source.col, source.index)
-        is Source.Foundation -> foundationRect(source.suit).topLeft
         is Source.Cell -> cellRect(source.index).topLeft
     }
 

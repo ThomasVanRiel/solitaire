@@ -18,8 +18,7 @@ import io.github.thomasvanriel.solitaire.engine.shuffle.Xoshiro256
  *   (Aces and Twos; a card whose opposite-colour foundations both hold rank−1; in Russian, every card).
  * - Pruning that can only lose solutions, never invent them: only the first empty column is used (the
  *   columns are interchangeable), a whole column never moves into an empty one, a card resting on a card it
- *   may rest on only moves if that uncovers something useful, and foundation cards come down only when
- *   something could then go on them.
+ *   may rest on only moves if that uncovers something useful.
  * - Columns are hashed as a sum, so their order doesn't matter, and so are the free cells.
  *
  * The result is still replayed by [ProofVerifier] before anything is served.
@@ -213,13 +212,6 @@ class OpenGameSolver(
                 val size = s.tabSize[a]
                 if (size - 1 == s.tabDown[a] && s.tabDown[a] > 0) P_FOUNDATION + 5 else P_FOUNDATION
             }
-            Move.TYPE_F2T -> {
-                if (inSuit) return -1 // nothing could ever go on it
-                val card = Card.of(a, s.found[a] - 1)
-                if (isSafe(card) || !somethingCouldGoOn(card, -1, -1)) -1
-                else if (s.tabSize[Move.b(code)] == 0 && Move.b(code) != firstEmpty) -1
-                else P_FROM_FOUNDATION
-            }
             Move.TYPE_T2T -> tableauPriority(a, Move.b(code), Move.c(code), firstEmpty)
             Move.TYPE_CELL -> when (Move.c(code)) {
                 Move.CELL_UP -> P_FOUNDATION
@@ -272,7 +264,7 @@ class OpenGameSolver(
 
     /**
      * True if a card that may rest on [target] is face up somewhere outside column [skip] at or above
-     * [skipFrom] (the group about to move), in a free cell, or on top of a foundation (Yukon).
+     * [skipFrom] (the group about to move), or in a free cell.
      */
     private fun somethingCouldGoOn(target: Int, skip: Int, skipFrom: Int): Boolean {
         val r = Card.rank(target)
@@ -284,12 +276,6 @@ class OpenGameSolver(
             for (i in s.tabDown[c] until end) if (Rules.stacks(ruleSet, col[i], target)) return true
         }
         for (card in s.cells) if (card >= 0 && Rules.stacks(ruleSet, card, target)) return true
-        if (ruleSet.foundationToTableau) {
-            for (suit in 0 until 4) {
-                val f = s.found[suit]
-                if (f > 0 && Rules.stacks(ruleSet, Card.of(suit, f - 1), target)) return true
-            }
-        }
         return false
     }
 
@@ -349,7 +335,6 @@ class OpenGameSolver(
         private const val P_LATERAL = 30
         private const val P_CELL_TO_EMPTY = 25
         private const val P_CELL_IN = 20
-        private const val P_FROM_FOUNDATION = 10
 
         private val Z_TAB: LongArray
         private val Z_CELL: LongArray

@@ -17,7 +17,7 @@ import io.github.thomasvanriel.solitaire.engine.shuffle.Xoshiro256
  *   This keeps the search complete.
  * - Safe auto-moves: cards no other card could ever need go to the foundation without branching.
  * - Pruning that can only lose solutions, never invent them: pointless moves to empty columns, partial run
- *   moves that don't unlock anything, foundation cards that would just bounce back.
+ *   moves that don't unlock anything.
  *
  * All moves are played through [Rules], so every recorded solution is a sequence of legal primitive moves.
  * The result is still replayed by [ProofVerifier] before anything is served.
@@ -264,20 +264,6 @@ class Solver(
             }
         }
 
-        for (suit in 0 until 4) {
-            val f = s.found[suit]
-            if (f == 0) continue
-            val card = Card.of(suit, f - 1)
-            if (isSafe(card)) continue // it would be auto-moved straight back
-            if (!somethingCouldGoOn(card, -1)) continue
-            for (to in 0 until GameState.COLUMNS) {
-                if (s.tabSize[to] == 0) {
-                    if (Card.rank(card) != Card.KING || to != empty) continue
-                } else if (!Card.stacksOn(card, s.tab[to][s.tabSize[to] - 1])) continue
-                add(0, Move.encode(Move.TYPE_F2T, suit, to, 0), P_FROM_FOUNDATION)
-            }
-        }
-
         sortCandidates()
         return nCand
     }
@@ -400,7 +386,6 @@ class Solver(
         private const val P_WASTE = 50
         private const val P_WASTE_KING = 45
         private const val P_PARTIAL = 30
-        private const val P_FROM_FOUNDATION = 10
 
         private val DRAW = Move.Draw.code
         private val RECYCLE = Move.Recycle.code

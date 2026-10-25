@@ -211,7 +211,8 @@ class RulesTest {
     }
 
     @Test
-    fun cardsCanComeBackFromTheFoundation() {
+    fun foundationCardsAreOutOfPlay() {
+        // 3H could rest on 4S, and a King could fill an empty column, but neither comes back down.
         val s = pos(
             """
             found: 0 0 3 0
@@ -219,15 +220,8 @@ class RulesTest {
             t2: 4H
             """,
         )
-        val back = Rules.legalMoves(s, d1).filterIsInstance<FoundationToTableau>()
-        assertEquals(listOf(FoundationToTableau(Card.HEARTS, 0)), back)
-        applyAndUndo(s, d1, FoundationToTableau(Card.HEARTS, 0)) {
-            assertEquals(2, it.found[Card.HEARTS])
-            assertEquals("4S 3H", cards(it.column(0)))
-        }
-        // A King can come down from the foundation into an empty column.
-        val k = pos("found: 13 0 0 0")
-        applyAndUndo(k, d1, FoundationToTableau(Card.CLUBS, 6)) { assertEquals("KC", cards(it.column(6))) }
+        assertTrue(Rules.legalMoves(s, d1).none { it is FoundationToTableau })
+        assertTrue(Rules.legalMoves(pos("found: 13 0 0 0"), d1).none { it is FoundationToTableau })
     }
 
     @Test

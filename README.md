@@ -49,6 +49,7 @@ game and statistics are kept.
   and the app only deals those.
 - **FreeCell**: every card face up in eight columns, four free cells that hold one card each, any card into
   an empty column. A run moves in one go when there is room to move it card by card.
+- In every game, a card that reaches a foundation stays there: it is out of play.
 - Four difficulty levels per game: Easy, Medium, Hard and Expert.
 
 **Playing**

@@ -51,22 +51,23 @@ class SolverTest {
 
     @Test
     fun draw3NeedsARecycleToReachTheRightCard() {
-        // Draw-3 from "AC 2C 3C ... " only shows every third card on the first pass; recycling and drawing
-        // again with a different number of cards left changes nothing, so the order must work out.
-        solveAndVerify(
+        // Draw 3 shows TS, then 8S: 8S and 9S go up, but JS is stuck on top of TS. Only after a recycle do
+        // the groups shift so that TS comes to the top. (Nothing can go into the empty columns but KS, which
+        // is never on top in the first pass.)
+        val moves = solveAndVerify(
             """
             found: 13 13 13 7
-            stock: KS QS JS TS 9S 8S
+            stock: 8S 9S JS TS QS KS
             """,
             d3,
         )
+        assertTrue(moves.any { it is Move.Recycle }, "solution must recycle: $moves")
     }
 
     @Test
-    fun needsACardBackFromTheFoundation() {
-        // 4H covers 3H. It can only move onto a black 5, and the only reachable one is 5C on its foundation,
-        // which first has to come down onto 6H.
-        val moves = solveAndVerify(
+    fun foundationCardsNeverComeBack() {
+        // 4H covers 3H and needs a black 5; the only one is 5C on its foundation, which stays there.
+        val s = pos(
             """
             found: 5 13 2 13
             t1: 3H | 4H
@@ -74,9 +75,8 @@ class SolverTest {
             t3: 5H
             stock: 6C 7C 8C 9C TC JC QC KC 7H 8H 9H TH JH QH KH
             """,
-            d1,
         )
-        assertTrue(moves.any { it is Move.FoundationToTableau }, "solution must bring a card back: $moves")
+        assertTrue(Solver(d1).solve(s) is SolveResult.Unsolvable)
     }
 
     @Test

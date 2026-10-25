@@ -159,7 +159,7 @@ class OpenGamesTest {
     }
 
     @Test
-    fun yukonFoundationsGoBothWays() {
+    fun yukonFoundationsAreOutOfPlay() {
         val s = withFoundations(
             """
             t1: 2H
@@ -172,9 +172,9 @@ class OpenGamesTest {
         assertEquals(1, s.found[Card.HEARTS])
         assertEquals(2, s.found[Card.DIAMONDS])
         applyAndUndo(s, yu, TableauToFoundation(0)) { assertEquals(2, it.found[Card.HEARTS]) }
-        // The 2 of diamonds is on its foundation and may come back down onto the 3 of spades.
-        assertTrue(Rules.isLegal(s, yu, FoundationToTableau(Card.DIAMONDS, 2)))
-        applyAndUndo(s, yu, FoundationToTableau(Card.DIAMONDS, 2)) { assertEquals("3S 2D", col(it, 2)) }
+        // The 2 of diamonds could rest on the 3 of spades, but a card on a foundation stays there.
+        assertFalse(Rules.isLegal(s, yu, FoundationToTableau(Card.DIAMONDS, 2)))
+        assertTrue(Rules.legalMoves(s, yu).none { it is FoundationToTableau })
         assertFalse(Rules.legalMoves(s, yu).any { it is TableauToCell })
     }
 
@@ -302,7 +302,8 @@ class OpenGamesTest {
         }
         assertTrue(totalMoves > 200_000, "fuzz should play plenty of moves, played $totalMoves")
         for (kind in listOf(Move.CELL_IN, Move.CELL_OUT, Move.CELL_UP)) assertTrue(Move.TYPE_CELL to kind in seen, "cell move $kind")
-        assertTrue(Move.TYPE_F2T to 0 in seen && Move.TYPE_T2T to 0 in seen && Move.TYPE_T2F to 0 in seen)
+        assertTrue(Move.TYPE_T2T to 0 in seen && Move.TYPE_T2F to 0 in seen)
+        assertFalse(Move.TYPE_F2T to 0 in seen, "foundation cards never come back")
     }
 
     @Test

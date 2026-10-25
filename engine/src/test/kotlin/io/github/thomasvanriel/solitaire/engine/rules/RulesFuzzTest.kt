@@ -44,6 +44,7 @@ class RulesFuzzTest {
             assertEquals(start, s, "Game $game did not undo back to the start")
         }
         assertTrue(totalMoves > 1_000_000, "fuzz should play plenty of moves, played $totalMoves")
-        assertEquals((0..6).toSet(), seenTypes, "every move type should come up")
+        // Every Klondike move type except foundation to tableau, which no game allows any more.
+        assertEquals((0..5).toSet(), seenTypes, "every move type should come up")
     }
 }
