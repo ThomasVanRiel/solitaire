@@ -24,7 +24,8 @@ sealed class Advice {
  * Finds helpful moves, for the Hint button and the "no moves left" check.
  *
  * A move *helps* when it can't be taken back: it turns over a face-down card, plays a card from the stock or
- * waste, deals (Spider, Scorpion II) or takes off a complete run. Every other move only rearranges face-up
+ * waste, deals (Spider, Scorpion II) or takes off a complete run. In the games without a stock (Yukon,
+ * FreeCell) a card going up to a foundation helps too: every win needs those moves. Every other move only rearranges face-up
  * cards (or cycles the Klondike stock), and there are only finitely many such arrangements. So the search
  * walks through them, breadth first, looking for one where a helpful move is legal. If there is none, the
  * player can only shuffle cards around forever: they are stuck.
@@ -79,9 +80,11 @@ object MoveAdvisor {
 
     /** How a move from [before] to [after] helps (lower is shown first), or null if it doesn't. */
     private fun helpRank(before: GameState, after: GameState, rs: RuleSet): Int? = when {
-        after.foundationCount > before.foundationCount && rs.game != GameType.KLONDIKE -> 0 // a run comes off
+        after.foundationCount > before.foundationCount && !rs.buildsFoundations -> 0 // a run comes off
         faceDown(after) < faceDown(before) -> 1
         rs.game == GameType.KLONDIKE && after.stockSize + after.wasteSize < before.stockSize + before.wasteSize -> 2
+        // Without a stock, a card going up is what progress means (and every win needs it).
+        !rs.hasStock && after.foundationCount > before.foundationCount -> 2
         rs.game != GameType.KLONDIKE && after.stockSize < before.stockSize -> 3 // a deal
         else -> null
     }

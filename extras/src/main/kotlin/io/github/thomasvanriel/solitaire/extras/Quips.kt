@@ -144,6 +144,14 @@ object Quips {
             "The scorpion stings. It's in its nature.",
             "You put a King in the wrong column, didn't you.",
         ),
+        GameType.YUKON to listOf(
+            "Lost in the Yukon. Bring a coat.",
+            "The gold rush is over. You found rocks.",
+        ),
+        GameType.FREECELL to listOf(
+            "Four free cells, and not one of them is free.",
+            "All the cards are face up. So is the problem.",
+        ),
     )
 
     private val ABANDONED = listOf(

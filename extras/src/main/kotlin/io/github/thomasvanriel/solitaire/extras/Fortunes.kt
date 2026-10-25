@@ -90,12 +90,15 @@ object Fortunes {
         addAll(Calendar.winTimeLines(f.now))
         if (f.ruleSet == RuleSet.DRAW_3_UNLIMITED) add("Draw 3? On purpose? Respect.")
         if (f.ruleSet == RuleSet.SPIDER_4_SUITS) add("Four suits? You absolute legend.")
+        if (f.ruleSet == RuleSet.RUSSIAN) add("Russian, in suit, all the way down. Respect.")
     }
 
     internal fun random(f: WinFacts): List<String> = GENERAL + luckyNumbers(f.seed) + when (f.ruleSet.game) {
         GameType.KLONDIKE -> KLONDIKE
         GameType.SPIDER -> SPIDER
         GameType.SCORPION -> SCORPION
+        GameType.YUKON -> if (f.ruleSet.buildInSuit) RUSSIAN else YUKON
+        GameType.FREECELL -> FREECELL
     }
 
     private fun luckyNumbers(seed: Long): String {
@@ -178,6 +181,24 @@ object Fortunes {
         "The scorpion has been calmed.",
         "You pulled the sting out of that one.",
         "The three reserve cards never stood a chance.",
+    )
+
+    private val YUKON = listOf(
+        "You struck gold in the Yukon.",
+        "Out of order, into the foundations. Nicely done.",
+        "No stock, no mercy, no problem.",
+    )
+
+    private val RUSSIAN = listOf(
+        "Russian Solitaire. In suit. You absolute machine.",
+        "Nine in ten of these can't be won. This one could, and you did.",
+        "The suits lined up for you. They rarely do.",
+    )
+
+    private val FREECELL = listOf(
+        "Four cells, zero panic.",
+        "Every card was there all along. You just had to look.",
+        "Not a single card was hidden, and you still made it look hard. Kidding. Well played.",
     )
 }
 

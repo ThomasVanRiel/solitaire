@@ -592,6 +592,12 @@ private fun rulesSummary(rs: RuleSet): String = when (rs.game) {
     GameType.SCORPION -> "Build down in suit. Any face-up card moves together with all the cards on top of it. " +
         "Only a King may fill an empty column. A King-to-Ace run is taken off. The stock deals once, onto " +
         "the first three columns."
+    GameType.YUKON -> (if (rs.buildInSuit) "Build down in suit. " else "Build down in alternating colours. ") +
+        "Any face-up card moves together with all the cards on top of it, in order or not. Only a King may " +
+        "fill an empty column. There is no stock: move every card to the foundations, Ace to King."
+    GameType.FREECELL -> "Every card is face up. Build down in alternating colours; each free cell holds one " +
+        "card, and any card may fill an empty column. A run moves at once if there is room to move it card " +
+        "by card. Move every card to the foundations, Ace to King."
 }
 
 private fun formatTime(seconds: Long): String = "%d:%02d".format(seconds / 60, seconds % 60)

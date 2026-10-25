@@ -41,6 +41,24 @@ How the engine, solver, difficulty rating, deal packs and app work. For features
   suit. Any face-up card moves with everything on top of it. Only a King (with what's on it) goes into an
   empty column. The 3 reserve cards are dealt once, one onto each of columns 1–3 (also onto empty columns).
 
+### Yukon (`YUKON` id 7) and Russian Solitaire (`RUSSIAN` id 8)
+- One deck, 7 columns, no stock. Dealt like Klondike first (column c gets c+1 cards, top one face up), then
+  four rows of face-up cards onto columns 2–7: column 1 has 1 card, column n has n−1 face-down cards under 5
+  face-up ones. All 52 cards are dealt.
+- Build down in alternating colours (Russian: in suit). Any face-up card moves together with everything on
+  top of it, in order or not. Only a King (with what's on it) goes into an empty column. Foundations by suit,
+  Ace up; foundation cards may come back down (in Russian that never helps).
+- Russian is hard: only about 1 seed in 15 is winnable (an exact breadth-first search over `Rules` agrees with
+  the solver on the ones it calls unsolvable).
+
+### FreeCell (`FREECELL` id 9)
+- One deck dealt face up, row by row, into 8 columns (columns 1–4 get 7 cards, 5–8 get 6), plus 4 free
+  cells (`GameState.cells`, -1 = empty) holding one card each.
+- Build down in alternating colours; any card or run goes into an empty column. A run of n cards moves as
+  one move when n ≤ (free cells + 1) × 2^(empty columns, not counting the target) (`Rules.maxRunMove`).
+  Foundations by suit, Ace up; foundation cards don't come back.
+- A card going into a cell takes the first empty one, so the move needs no cell index.
+
 ### Spider and Scorpion II
 - A complete King-to-Ace run of one suit leaves the board. This is a **forced move in the rules**
   (`TableauToFoundation(col)`): while one shows, it is the only legal move, so the solver, proofs, verifier
@@ -51,13 +69,18 @@ How the engine, solver, difficulty rating, deal packs and app work. For features
 
 - `model/Card`: an Int `suit*13 + rank`. Suits C, D, H, S; D and H are red.
 - `model/Move`: sealed type with a 17-bit `code`. The rules engine works on codes directly. Klondike code
-  values are unchanged from the original 13-bit format.
+  values are unchanged from the original 13-bit format. The FreeCell cell moves (`TableauToCell`,
+  `CellToTableau`, `CellToFoundation`) share type 7 and keep their kind in the `c` field.
 - `model/GameState`: int arrays (columns with a face-down count, stock, waste, foundation counts, recycle
-  count), sized from the rule set (`GameState.forRules`). `found[suit]` counts cards. `StateFormat` is a text
+  count, free cells), sized from the rule set (`GameState.forRules`). `found[suit]` counts cards. `StateFormat` is a text
   format for hand-built test positions.
-- `model/RuleSet`: `game` (`GameType`: KLONDIKE, SPIDER, SCORPION), `suits`, `columns`, `deckSize`, labels.
+- `model/RuleSet`: `game` (`GameType`: KLONDIKE, SPIDER, SCORPION, YUKON, FREECELL), `suits`, `buildInSuit`
+  (Russian), `columns`, `deckSize`, `cells`, labels, and rule flags the UI and engine share (`hasStock`,
+  `buildsFoundations`, `foundationToTableau`, `kingsOnlyInEmpty`).
 - `rules/Rules`: `legalMoveCodes` plus in-place `applyCode`/`undoCode` with an int undo token; convenience
   `legalMoves`, `isLegal` and `apply`.
+- `rules/Endgame`: when a game can finish itself (nothing face down, no stock or waste, every column in
+  order: the lowest card left is then always free and fits), and the next move of that finish.
 - `rules/Game`: immutable game (start, moves, intermediate states) with play, undo, restart and replay.
 - `rules/StateValidator`: invariant checker (card multiset, face-down cards only under face-up ones,
   foundations in sequence, run order in Klondike).
@@ -67,7 +90,7 @@ How the engine, solver, difficulty rating, deal packs and app work. For features
 
 ## Solvers (`engine/solver/`)
 
-`DealSolver.create` picks the solver for a rule set. Both are depth-first searches over the shared `Rules`
+`DealSolver.create` picks the solver for a rule set. All three are depth-first searches over the shared `Rules`
 code with in-place apply/undo and a 64-bit Zobrist transposition table.
 
 **Restarts**: the first attempt gets 20k nodes and each further attempt doubles that, with ties between
@@ -96,6 +119,18 @@ Budgets: node limit, time limit and cancel callback. Outcomes: `Solved(moves)`, 
   go on it, never move a whole column into an empty one, and once the stock is empty only use the first empty
   column. Columns are hashed in order while the stock has cards, and as a sum after that.
 
+### Yukon, Russian and FreeCell (`OpenGameSolver`)
+- Candidates are exactly `Rules.legalMoveCodes`, ranked, with some left out; nothing is generated on the side.
+- Safe auto-moves: Aces and Twos, a card whose opposite-colour foundations both hold rank−1, and in Russian
+  every card (only the same-suit card one lower could ever rest on it, and that one is already up).
+- Ordering: foundation moves, reveals (more hidden first), emptying a column, cell to column (FreeCell),
+  moving a card that doesn't rest on its proper card onto one that it does, a King or run into an empty column,
+  moves that uncover something useful, cell to an empty column, column to cell, foundation to column.
+- Pruning (can lose solutions, never invents them): only the first empty column is used, a whole column never
+  moves into an empty one, a card resting on its proper card only moves if what it uncovers can go up or take
+  another card, and a foundation card only comes down if it isn't safe and something could go on it. Columns
+  and free cells are hashed as sums, so their order doesn't matter.
+
 ### Benchmark
 
 ```sh
@@ -103,7 +138,8 @@ Budgets: node limit, time limit and cancel callback. Outcomes: `Solved(moves)`, 
 ./gradlew :engine:test -Pbench --tests '*SolverBenchmark' -PbenchRules=SPIDER_2_SUITS,SCORPION_II
 ```
 
-Single thread, desktop JVM. Klondike: 1,000 seeds, 1M node budget. Others: 100 seeds, 300k nodes.
+Single thread, desktop JVM. Klondike: 1,000 seeds, 1M node budget. Others: 100 seeds (Yukon, Russian and
+FreeCell: 200), 300k nodes.
 
 | Rule set | Solved | Proved unsolvable | Unknown | Median time | Median solution |
 |---|---|---|---|---|---|
@@ -113,6 +149,9 @@ Single thread, desktop JVM. Klondike: 1,000 seeds, 1M node budget. Others: 100 s
 | Spider 2 suits | 94% | 0% | 6% | 11 ms | 159 moves |
 | Spider 4 suits | 11% | 0% | 89% | 563 ms | 326 moves |
 | Scorpion II | 24% | 43% | 33% | 318 ms | 55 moves |
+| Yukon | 87% | 1% | 12% | 0.9 ms | 96 moves |
+| Russian | 9.5% | 90.5% | 0% | 0.2 ms | 88 moves |
+| FreeCell | 99.5% | 0% | 0.5% | 1.6 ms | 123 moves |
 
 Klondike p95 is about 5 s: the `Unknown` deals using their whole budget. The Klondike solver runs at about
 200k nodes/s. At 3M nodes, 4-suit Spider reaches about 30%.
@@ -132,11 +171,17 @@ that each player's choices don't change.
   position it has seen in the same game. Scorpion: simple priorities (reveal, empty a column, build, King to
   an empty column, deal). Spider: one-move look-ahead on a visible score; the card a move would turn over is
   ignored, and it deals only when nothing improves the position.
+- `OpenGamePlayer` (Yukon, Russian, FreeCell) never looks at face-down cards and never returns to a position
+  it has seen in the same game. Priorities: safe foundation moves, reveals, other foundation moves, cell to
+  column, emptying a column, moving a card that doesn't rest on its proper card onto one, a King (Yukon) or
+  run (FreeCell) into an empty column, column to cell (better when it frees a card for the foundations).
 - `DifficultyRater` runs 30 playouts seeded from the deal seed, so ratings are deterministic.
-  - Klondike and Scorpion II: wins out of 30.
+  - Klondike, Scorpion II, Yukon and Russian: wins out of 30.
   - Spider (the player almost never wins 2- or 4-suit games): the average over 30 games of 1 for a win,
     otherwise 0.8 × (half the share of face-down cards turned over + half the share of cards taken off),
     as a percentage. The pack's `wins` byte holds this percentage.
+  - FreeCell (the player loses about 40% of deals outright, which people find easy): the same, with a lost
+    game worth 0.8 × the share of cards it put on the foundations.
 
 Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winnable deals:
 
@@ -145,6 +190,9 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
 | Draw 1 (wins of 30) | 0 | 1–6 | 7–20 | 21–30 |
 | Draw 3 (wins of 30) | 0 | 1–3 | 4–11 | 12–30 |
 | Scorpion II (wins of 30) | 0 | 1–5 | 6–16 | 17–30 |
+| Yukon (wins of 30) | 0 | 1–4 | 5–10 | 11–30 |
+| Russian (wins of 30) | 0 | 1–6 | 7–17 | 18–30 |
+| FreeCell (rating %) | ≤4 | 5–10 | 11–20 | ≥21 |
 | Spider 1 suit (rating %) | ≤33 | 34–44 | 45–51 | ≥52 |
 | Spider 2 suits (rating %) | ≤14 | 15–17 | 18–20 | ≥21 |
 | Spider 4 suits (rating %) | ≤11 | 12–13 | 14–15 | ≥16 |
@@ -157,6 +205,9 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
 - `MoveAdvisor.advise` searches those positions breadth first (recycle count ignored with unlimited passes)
   for one where a helpful move is legal. Results: `Hint(move)` (a helpful move, or the first step towards
   one), `Stuck` (none reachable: the position can't be won), `Unknown` (over the state budget) or `Won`.
+- Yukon and FreeCell have no stock, so a card going up to a foundation also helps (a win needs every card
+  to go up, so "stuck" stays correct). In FreeCell nothing is hidden and almost every position can be
+  rearranged a lot, so the stuck check often runs out of states and says nothing.
 - Helpful moves at the current position are preferred in this order: a run comes off, a card turns over, a
   card leaves the stock/waste, a deal. It never searches for the best move, so a hint doesn't solve the game.
 - It only applies moves from `Rules`, and never plays a Spider/Scorpion deal (it only notes that one is
@@ -173,10 +224,10 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   replays through `ProofVerifier`.
 - `SolutionCodec`: each move is its index in `Rules.legalMoveCodes`, one byte; an index of 255 or more
   (Spider only) is 255 plus two bytes. Decoding can only yield legal moves, and the result is still replayed.
-- `DealCode`: a two-letter variant prefix and the deal number (`K1`, `K3`, `S1`, `S2`, `S4`, `SC`, e.g.
-  `S2-17`). Case, spaces, `#` and the dash are ignored.
+- `DealCode`: a two-letter variant prefix and the deal number (`K1`, `K3`, `S1`, `S2`, `S4`, `SC`, `YU`,
+  `RU`, `FC`, e.g. `S2-17`). Case, spaces, `#` and the dash are ignored.
 - `dealgen` processes seeds in ordered parallel batches, so output is deterministic.
-- Shipped: 100 deals per tier per rule set (2,400 deals). At 2,500 per tier the packs would be about 6.4 MB
+- Shipped: 100 deals per tier per rule set (3,600 deals). At 2,500 per tier the packs would be about 6.4 MB
   in total and take several hours to generate on 8 threads (4-suit Spider and Scorpion II are the slow ones).
 - Changing the rules or the order of the legal-move list invalidates the packs; regenerate them.
 
@@ -189,7 +240,9 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
 - `SavedGameStore` (SharedPreferences) saves seed, rule set, tier, moves (3 bytes each, key `moves3`; the old
   2-byte `moves` key still loads), time and the stats flags after every move. The game is rebuilt by replay.
   Preferences open lazily, first accessed on `Dispatchers.IO`.
-- `StatsStore`: per variant and tier. Hints shown are counted, and so are wins that used a hint ("won
+- `StatsStore`: per variant and tier. The Statistics screen also has an "All games" chip: totals over every
+  game and difficulty (`combinedStats`), the best streak of any one game, and a played/won table per game.
+  Fastest time and fewest moves aren't shown there, since they can't be compared across games. Hints shown are counted, and so are wins that used a hint ("won
   without hints" is won minus those, so wins from before hints existed count as without). A game counts
   from its first move. New game before winning is a loss
   and ends the streak. Restart is the same game but counts as using undo. Debug autoplay never counts.
@@ -197,8 +250,14 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   vector shapes. Portrait: foundations left, stock far right with the waste beside it. Landscape: foundations
   down the left edge, stock down the right. Spider and Scorpion II leave a small gap where a same-suit
   sequence breaks (12% and 7% of a card height).
-- Tap sends a card to the best place (Klondike: foundation, then non-empty columns, then an empty column for
-  a King; Spider/Scorpion: same-suit card, any card, empty column). Drag highlights legal targets.
+- Tap sends a card to the best place (Klondike and Yukon: foundation, then non-empty columns, then an empty
+  column for a King; FreeCell: foundation, non-empty columns, a free cell, an empty column; Spider/Scorpion:
+  same-suit card, any card, empty column). Drag highlights legal targets; dropping on any free cell uses the
+  first empty one. A FreeCell run that fits but is too long for the free room gets a notice saying how many
+  cards can move.
+- Portrait FreeCell has its free cells at the top left and the foundations at the top right; in landscape
+  the cells are a 2×2 block on the left and the foundations one on the right. Yukon has no stock slot.
+- The game finishes itself when `Endgame.canFinish` says so (Klondike, Yukon, FreeCell).
 - Top bar: New game and Restart as text buttons; Undo, Hint and Statistics as small icon buttons drawn on a
   Canvas (no icon library), each with a content description. The second row has the deal (tap to share)
   and the move count and clock. The win screen dims the board only: New game, Restart and Statistics stay

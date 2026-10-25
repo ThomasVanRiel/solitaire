@@ -21,21 +21,25 @@ object StateValidator {
             return null
         }
         val klondike = ruleSet.game == GameType.KLONDIKE
+        val oneByOne = ruleSet.buildsFoundations
         for (suit in 0 until 4) {
             val f = s.found[suit]
-            if (f < 0 || (klondike && f > 13) || (!klondike && f % 13 != 0)) return "Foundation $suit has $f cards"
+            if (f < 0 || (oneByOne && f > 13) || (!oneByOne && f % 13 != 0)) return "Foundation $suit has $f cards"
             for (k in 0 until f) mark(Card.of(suit, k % 13), "foundation")?.let { return it }
         }
         for (i in 0 until s.stockSize) mark(s.stock[i], "stock")?.let { return it }
         for (i in 0 until s.wasteSize) mark(s.waste[i], "waste")?.let { return it }
         if (!klondike && (s.wasteSize != 0 || s.recycles != 0)) return "${ruleSet.game.label} has no waste"
+        if (!ruleSet.hasStock && s.stockSize != 0) return "${ruleSet.game.label} has no stock"
+        if (s.cells.size != ruleSet.cells) return "Expected ${ruleSet.cells} free cells, found ${s.cells.size}"
+        for (card in s.cells) if (card >= 0) mark(card, "free cell")?.let { return it }
         for (c in 0 until s.columns) {
             val size = s.tabSize[c]
             val down = s.tabDown[c]
             if (down < 0 || down > size) return "Column ${c + 1} has $down face-down cards of $size"
             if (size > 0 && down == size) return "Column ${c + 1} has a face-down top card"
             for (i in 0 until size) mark(s.tab[c][i], "column ${c + 1}")?.let { return it }
-            // Only Klondike keeps every face-up run in order: in Spider and Scorpion a deal can land on anything.
+            // Only Klondike keeps every face-up run in order: elsewhere a deal or a group move can land on anything.
             if (klondike) {
                 for (i in down + 1 until size) {
                     if (!Card.stacksOn(s.tab[c][i], s.tab[c][i - 1])) {

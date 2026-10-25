@@ -262,6 +262,8 @@ class RulesTest {
             for (c in 0..6) { add(WasteToTableau(c)); add(TableauToFoundation(c)) }
             for (f in 0..6) for (t in 0..6) for (n in 1..13) if (f != t) add(TableauToTableau(f, n, t))
             for (s in 0..3) for (c in 0..6) add(FoundationToTableau(s, c))
+            for (c in 0..7) add(Move.TableauToCell(c))
+            for (k in 0..3) { add(Move.CellToFoundation(k)); for (c in 0..7) add(Move.CellToTableau(k, c)) }
         }
         assertEquals(all.size, all.map { it.code }.toSet().size, "codes are unique")
         for (m in all) {
@@ -269,7 +271,7 @@ class RulesTest {
             assertEquals(m, Move.decode(m.code))
         }
         assertEquals(all, Move.decodeAll(Move.encodeAll(all)))
-        assertThrows<IllegalArgumentException> { Move.decode(7) }
+        assertThrows<IllegalArgumentException> { Move.decode(Move.encode(Move.TYPE_CELL, 0, 0, 3)) }
     }
 
     @Test

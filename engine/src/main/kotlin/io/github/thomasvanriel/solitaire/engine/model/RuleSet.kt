@@ -19,6 +19,21 @@ enum class GameType(val label: String) {
      * A complete King-to-Ace run of one suit leaves the board.
      */
     SCORPION("Scorpion II"),
+
+    /**
+     * Yukon: one deck, 7 columns, no stock. Column 1 has one card; column n has n-1 face-down cards under
+     * 5 face-up ones. Build down in alternating colours (Russian Solitaire: in suit). Any face-up card moves
+     * together with every card on top of it, in order or not. Only Kings go into empty columns.
+     * Foundations are built up by suit from the Ace.
+     */
+    YUKON("Yukon"),
+
+    /**
+     * FreeCell: one deck dealt face up into 8 columns, plus 4 free cells that hold one card each. Build down
+     * in alternating colours; any card goes into an empty column. A run moves as one move if there is room
+     * to move it card by card through the free cells and empty columns. Foundations by suit from the Ace.
+     */
+    FREECELL("FreeCell"),
 }
 
 /**
@@ -28,6 +43,7 @@ enum class GameType(val label: String) {
  * @param drawCount Klondike: cards turned from the stock per draw (1 or 3). Not used by other games.
  * @param maxRecycles Klondike: how many times the waste may be turned back into the stock; -1 means unlimited.
  * @param suits Spider: how many different suits the two decks use (1, 2 or 4). 4 for the other games.
+ * @param buildInSuit Yukon: build down in suit (Russian Solitaire) instead of in alternating colours.
  */
 class RuleSet private constructor(
     val id: Int,
@@ -36,11 +52,34 @@ class RuleSet private constructor(
     val drawCount: Int,
     val maxRecycles: Int,
     val suits: Int = 4,
+    val buildInSuit: Boolean = false,
 ) {
     val unlimitedRecycles: Boolean get() = maxRecycles < 0
 
-    val columns: Int get() = if (game == GameType.SPIDER) 10 else 7
+    val columns: Int get() = when (game) {
+        GameType.SPIDER -> 10
+        GameType.FREECELL -> 8
+        else -> 7
+    }
     val deckSize: Int get() = if (game == GameType.SPIDER) 104 else 52
+
+    /** Free cells that hold one card each (FreeCell only). */
+    val cells: Int get() = if (game == GameType.FREECELL) 4 else 0
+
+    /** Has a stock to draw or deal from (Klondike, Spider, Scorpion II). */
+    val hasStock: Boolean get() = game == GameType.KLONDIKE || game == GameType.SPIDER || game == GameType.SCORPION
+
+    /**
+     * Cards go to the foundations one at a time, Ace to King (Klondike, Yukon, FreeCell). Otherwise only
+     * complete King-to-Ace runs leave the board (Spider, Scorpion II).
+     */
+    val buildsFoundations: Boolean get() = game == GameType.KLONDIKE || game == GameType.YUKON || game == GameType.FREECELL
+
+    /** A foundation's top card may come back to the tableau (Klondike, Yukon). */
+    val foundationToTableau: Boolean get() = game == GameType.KLONDIKE || game == GameType.YUKON
+
+    /** Only a King (with whatever is on it) may go into an empty column. */
+    val kingsOnlyInEmpty: Boolean get() = game == GameType.KLONDIKE || game == GameType.SCORPION || game == GameType.YUKON
 
     /** Longest a column can ever get (plus room for hand-built test positions in Klondike). */
     val columnCapacity: Int get() = when (game) {
@@ -53,13 +92,14 @@ class RuleSet private constructor(
         GameType.KLONDIKE -> "Draw $drawCount"
         GameType.SPIDER -> if (suits == 1) "1 suit" else "$suits suits"
         GameType.SCORPION -> "Scorpion II"
+        GameType.YUKON -> if (buildInSuit) "Russian" else "Yukon"
+        GameType.FREECELL -> "FreeCell"
     }
 
     /** Full name for the player, such as "Draw 3", "Spider 2 suits" or "Scorpion II". */
     val label: String get() = when (game) {
-        GameType.KLONDIKE -> variantLabel
         GameType.SPIDER -> "Spider $variantLabel"
-        GameType.SCORPION -> variantLabel
+        else -> variantLabel
     }
 
     override fun toString(): String = name
@@ -71,8 +111,14 @@ class RuleSet private constructor(
         val SPIDER_2_SUITS = RuleSet(4, "SPIDER_2_SUITS", GameType.SPIDER, 0, 0, suits = 2)
         val SPIDER_4_SUITS = RuleSet(5, "SPIDER_4_SUITS", GameType.SPIDER, 0, 0, suits = 4)
         val SCORPION_II = RuleSet(6, "SCORPION_II", GameType.SCORPION, 0, 0)
+        val YUKON = RuleSet(7, "YUKON", GameType.YUKON, 0, 0)
+        val RUSSIAN = RuleSet(8, "RUSSIAN", GameType.YUKON, 0, 0, buildInSuit = true)
+        val FREECELL = RuleSet(9, "FREECELL", GameType.FREECELL, 0, 0)
 
-        val ALL: List<RuleSet> = listOf(DRAW_1_UNLIMITED, DRAW_3_UNLIMITED, SPIDER_1_SUIT, SPIDER_2_SUITS, SPIDER_4_SUITS, SCORPION_II)
+        val ALL: List<RuleSet> = listOf(
+            DRAW_1_UNLIMITED, DRAW_3_UNLIMITED, SPIDER_1_SUIT, SPIDER_2_SUITS, SPIDER_4_SUITS, SCORPION_II,
+            YUKON, RUSSIAN, FREECELL,
+        )
 
         fun byId(id: Int): RuleSet = ALL.firstOrNull { it.id == id }
             ?: throw IllegalArgumentException("Unknown rule set id $id")

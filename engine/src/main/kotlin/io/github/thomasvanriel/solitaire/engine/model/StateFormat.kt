@@ -10,6 +10,7 @@ package io.github.thomasvanriel.solitaire.engine.model
  * t1: 5S 2D | KH QS     (bottom to top; cards left of '|' are face down)
  * t2:                   (empty column; missing lines are empty too)
  * recycles: 0           (optional)
+ * cells: AS - - QH      (FreeCell's free cells; '-' is an empty cell)
  * ```
  * Spider has columns t1 to t10, and its foundation counts are multiples of 13 (up to 104).
  */
@@ -30,6 +31,11 @@ object StateFormat {
                     n.forEachIndexed { i, v -> s.found[i] = v }
                 }
                 key == "recycles" -> s.recycles = value.toInt()
+                key == "cells" -> {
+                    val c = value.split(Regex("\\s+")).filter { it.isNotEmpty() }
+                    require(c.size == s.cells.size) { "cells needs ${s.cells.size} entries" }
+                    c.forEachIndexed { i, v -> s.cells[i] = if (v == "-") -1 else Card.parse(v) }
+                }
                 key.length >= 2 && key[0] == 't' && key.drop(1).toIntOrNull() in 1..s.columns -> {
                     val c = key.drop(1).toInt() - 1
                     val down = if ('|' in value) cards(value.substringBefore('|')) else emptyList()
@@ -57,6 +63,7 @@ object StateFormat {
             appendLine("t${c + 1}: " + if (s.tabDown[c] > 0) "$down | $up" else up)
         }
         append("recycles: ${s.recycles}")
+        if (s.cells.isNotEmpty()) append("\ncells: " + s.cells.joinToString(" ") { if (it < 0) "-" else Card.code(it) })
     }
 
     private fun cards(text: String): List<Int> =

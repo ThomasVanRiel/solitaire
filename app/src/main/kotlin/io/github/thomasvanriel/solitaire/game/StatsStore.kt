@@ -34,6 +34,24 @@ data class ModeStats(
     val winRate: Double get() = if (played == 0) 0.0 else won.toDouble() / played
 }
 
+/**
+ * Every game added up, per difficulty. Times and move counts can't be compared across games, so they are
+ * left out (-1); the best streak is the best of any one game, and there is no current streak.
+ */
+fun combinedStats(all: Collection<ModeStats>): ModeStats = ModeStats(
+    tiers = Tier.entries.associateWith { t ->
+        val ts = all.map { it.tiers[t] ?: TierStats() }
+        TierStats(
+            played = ts.sumOf { it.played },
+            won = ts.sumOf { it.won },
+            wonWithoutUndo = ts.sumOf { it.wonWithoutUndo },
+            hints = ts.sumOf { it.hints },
+            wonWithHints = ts.sumOf { it.wonWithHints },
+        )
+    },
+    bestStreak = all.maxOfOrNull { it.bestStreak } ?: 0,
+)
+
 /** What a win changed, for the win screen. */
 data class WinRecord(val streak: Int, val newBestTime: Boolean, val newFewestMoves: Boolean)
 

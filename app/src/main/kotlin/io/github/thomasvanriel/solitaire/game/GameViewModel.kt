@@ -12,6 +12,7 @@ import io.github.thomasvanriel.solitaire.engine.model.GameType
 import io.github.thomasvanriel.solitaire.engine.model.Move
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.engine.pack.DealCode
+import io.github.thomasvanriel.solitaire.engine.rules.Endgame
 import io.github.thomasvanriel.solitaire.engine.rules.Game
 import io.github.thomasvanriel.solitaire.engine.rules.Rules
 import io.github.thomasvanriel.solitaire.engine.shuffle.Deals
@@ -48,12 +49,18 @@ sealed class Source {
     data object Waste : Source()
     data class Column(val col: Int, val index: Int) : Source()
     data class Foundation(val suit: Int) : Source()
+
+    /** FreeCell: the card in free cell [index]. */
+    data class Cell(val index: Int) : Source()
 }
 
 /** Where a card can be dropped. */
 sealed class Target {
     data class Column(val col: Int) : Target()
     data object Foundation : Target()
+
+    /** FreeCell: the free cells (the card goes into the first empty one). */
+    data object Cell : Target()
 }
 
 data class GameUiState(
@@ -355,7 +362,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * so it goes straight after the move that completed it.
      */
     private fun takeOffCompleteRuns(game: Game): Game {
-        if (game.ruleSet.game == GameType.KLONDIKE) return game
+        if (game.ruleSet.buildsFoundations) return game
         var g = game
         while (true) {
             val run = (0 until g.state.columns).firstOrNull { Rules.hasCompleteRun(g.state, it) } ?: return g
@@ -369,7 +376,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (s.busy || !game.canUndo) return
         // In Spider and Scorpion, taking off a run belongs to the move before it: undo both together.
         var g = game
-        if (g.ruleSet.game != GameType.KLONDIKE) {
+        if (!g.ruleSet.buildsFoundations) {
             while (g.canUndo && g.moves.last() is Move.TableauToFoundation) g = g.undo()
         }
         if (g.canUndo) g = g.undo()
@@ -380,6 +387,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun tapStock() {
         val game = _state.value.game ?: return
         val s = game.state
+        if (!game.ruleSet.hasStock) return
         if (game.ruleSet.game == GameType.KLONDIKE) {
             play(if (s.stockSize > 0) Move.Draw else Move.Recycle)
             return
@@ -414,14 +422,32 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun drop(source: Source, target: Target): Boolean {
         val move = moveFor(source, target) ?: return false
-        return play(move)
+        if (play(move)) return true
+        explainTooLongRun(move)
+        return false
+    }
+
+    /** FreeCell: says why a run that fits its target still can't move. */
+    private fun explainTooLongRun(move: Move) {
+        val game = _state.value.game ?: return
+        if (game.ruleSet.game != GameType.FREECELL || move !is Move.TableauToTableau) return
+        val s = game.state
+        val head = s.tab[move.from][s.tabSize[move.from] - move.count]
+        val room = Rules.maxRunMove(s, move.to)
+        if (move.count > room && Rules.fitsOnColumn(s, game.ruleSet, head, move.to)) {
+            showNotice("Room to move $room ${if (room == 1) "card" else "cards"}: free a cell or a column first")
+        }
     }
 
     /** Targets [source] could legally be dropped on, for highlighting during a drag. */
     fun legalTargets(source: Source): List<Target> {
         val game = _state.value.game ?: return emptyList()
         val columns = (0 until game.state.columns).map { Target.Column(it) }
-        val all = if (game.ruleSet.game == GameType.KLONDIKE) listOf<Target>(Target.Foundation) + columns else columns
+        val all = buildList<Target> {
+            if (game.ruleSet.buildsFoundations) add(Target.Foundation)
+            if (game.ruleSet.cells > 0) add(Target.Cell)
+            addAll(columns)
+        }
         return all.filter { t -> moveFor(source, t)?.let { game.isLegal(it) } == true }
     }
 
@@ -432,34 +458,46 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             Source.Waste -> when (target) {
                 Target.Foundation -> Move.WasteToFoundation
                 is Target.Column -> Move.WasteToTableau(target.col)
+                Target.Cell -> null
             }
             is Source.Column -> {
                 val count = s.tabSize[source.col] - source.index
                 when (target) {
                     Target.Foundation ->
-                        if (count == 1 && game.ruleSet.game == GameType.KLONDIKE) Move.TableauToFoundation(source.col) else null
+                        if (count == 1 && game.ruleSet.buildsFoundations) Move.TableauToFoundation(source.col) else null
                     is Target.Column -> if (target.col == source.col) null else Move.TableauToTableau(source.col, count, target.col)
+                    Target.Cell -> if (count == 1) Move.TableauToCell(source.col) else null
                 }
             }
             is Source.Foundation -> when (target) {
-                Target.Foundation -> null
                 is Target.Column -> Move.FoundationToTableau(source.suit, target.col)
+                Target.Foundation, Target.Cell -> null
+            }
+            is Source.Cell -> when (target) {
+                Target.Foundation -> Move.CellToFoundation(source.index)
+                is Target.Column -> Move.CellToTableau(source.index, target.col)
+                Target.Cell -> null
             }
         }
     }
 
     private fun candidateMoves(s: GameState, source: Source): List<Move> {
         val ruleSet = _state.value.game?.ruleSet ?: return emptyList()
-        if (ruleSet.game != GameType.KLONDIKE) return runGameCandidates(s, source)
+        if (!ruleSet.buildsFoundations) return runGameCandidates(s, source)
         val columns = columnPreference(s, source)
         return when (source) {
             Source.Waste -> listOf<Move>(Move.WasteToFoundation) + columns.map { Move.WasteToTableau(it) }
             is Source.Column -> {
                 val count = s.tabSize[source.col] - source.index
                 val toFoundation = if (count == 1) listOf<Move>(Move.TableauToFoundation(source.col)) else emptyList()
-                toFoundation + columns.filter { it != source.col }.map { Move.TableauToTableau(source.col, count, it) }
+                val toColumns = columns.filter { it != source.col }.map { Move.TableauToTableau(source.col, count, it) }
+                // FreeCell: a single card goes to a free cell before an empty column.
+                val toCell = if (count == 1 && ruleSet.cells > 0) listOf<Move>(Move.TableauToCell(source.col)) else emptyList()
+                val (onCards, intoEmpty) = toColumns.partition { s.tabSize[it.to] > 0 }
+                toFoundation + onCards + toCell + intoEmpty
             }
             is Source.Foundation -> columns.map { Move.FoundationToTableau(source.suit, it) }
+            is Source.Cell -> listOf<Move>(Move.CellToFoundation(source.index)) + columns.map { Move.CellToTableau(source.index, it) }
         }
     }
 
@@ -490,30 +528,20 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         return nonEmpty + empty
     }
 
-    /** When everything is face up and the stock is empty, play the remaining cards up automatically. */
+    /**
+     * When the rest plays itself (nothing face down, stock empty, every column in order: see [Endgame]),
+     * play the remaining cards up automatically.
+     */
     private fun maybeFinish() {
         val game = _state.value.game ?: return
-        if (game.ruleSet.game != GameType.KLONDIKE) return
-        val s = game.state
-        if (game.isWon || s.stockSize > 0 || s.wasteSize > 0) return
-        if ((0 until s.columns).any { s.tabDown[it] > 0 }) return
+        if (game.isWon || !Endgame.canFinish(game.state, game.ruleSet)) return
         runScript { finishMoves() }
     }
 
     private fun finishMoves(): Move? {
         val game = _state.value.game ?: return null
-        val s = game.state
         if (game.isWon) return null
-        var best: Move? = null
-        var bestRank = 99
-        for (c in 0 until s.columns) {
-            val top = s.columnTop(c)
-            if (top >= 0 && Rules.fitsOnFoundation(s, top) && Card.rank(top) < bestRank) {
-                best = Move.TableauToFoundation(c)
-                bestRank = Card.rank(top)
-            }
-        }
-        return best
+        return Endgame.nextMove(game.state)
     }
 
     /**

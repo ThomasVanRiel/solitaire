@@ -37,11 +37,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.thomasvanriel.solitaire.BuildConfig
 import io.github.thomasvanriel.solitaire.engine.difficulty.Tier
+import io.github.thomasvanriel.solitaire.engine.model.GameType
 import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 import io.github.thomasvanriel.solitaire.extras.Achievement
 import io.github.thomasvanriel.solitaire.extras.Achievements
 import io.github.thomasvanriel.solitaire.game.ModeStats
 import io.github.thomasvanriel.solitaire.game.TierStats
+import io.github.thomasvanriel.solitaire.game.combinedStats
 
 @Composable
 fun StatsScreen(
@@ -53,9 +55,10 @@ fun StatsScreen(
 ) {
     BackHandler(onBack = onClose)
     var ruleSetId by rememberSaveable { mutableStateOf(initialRuleSet.id) }
+    var showAll by rememberSaveable { mutableStateOf(false) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
     val ruleSet = RuleSet.byId(ruleSetId)
-    val mode = stats[ruleSet] ?: ModeStats()
+    val mode = if (showAll) combinedStats(stats.values) else stats[ruleSet] ?: ModeStats()
 
     Surface(Modifier.fillMaxSize()) {
         Column(
@@ -70,7 +73,16 @@ fun StatsScreen(
                 TextButton(onClick = onClose) { Text("Close") }
             }
             Spacer(Modifier.height(8.dp))
-            RuleSetPicker(ruleSet, onSelect = { ruleSetId = it.id }, showTitles = false)
+            RuleSetPicker(
+                ruleSet,
+                onSelect = {
+                    ruleSetId = it.id
+                    showAll = false
+                },
+                showTitles = false,
+                onSelectAll = { showAll = true },
+                allSelected = showAll,
+            )
             Spacer(Modifier.height(12.dp))
 
             Card(Modifier.fillMaxWidth()) {
@@ -78,8 +90,12 @@ fun StatsScreen(
                     SummaryLine("Played", mode.played.toString())
                     SummaryLine("Won", mode.won.toString())
                     SummaryLine("Win rate", percent(mode.won, mode.played))
-                    SummaryLine("Current streak", mode.currentStreak.toString())
-                    SummaryLine("Best streak", mode.bestStreak.toString())
+                    if (showAll) {
+                        SummaryLine("Best streak (one game)", mode.bestStreak.toString())
+                    } else {
+                        SummaryLine("Current streak", mode.currentStreak.toString())
+                        SummaryLine("Best streak", mode.bestStreak.toString())
+                    }
                     SummaryLine("Won without undo", mode.wonWithoutUndo.toString())
                     SummaryLine("Won without hints", mode.wonWithoutHints.toString())
                     SummaryLine("Hints used", mode.hints.toString())
@@ -89,20 +105,39 @@ fun StatsScreen(
 
             Text("By difficulty", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            TableRow(listOf("", "Played", "Won", "Win %", "Fastest", "Fewest"), header = true)
-            HorizontalDivider()
-            for (tier in Tier.entries) {
-                val t = mode.tiers[tier] ?: TierStats()
-                TableRow(
-                    listOf(
-                        tier.label,
-                        t.played.toString(),
-                        t.won.toString(),
-                        percent(t.won, t.played),
-                        if (t.bestTime < 0) "–" else formatSeconds(t.bestTime),
-                        if (t.fewestMoves < 0) "–" else t.fewestMoves.toString(),
-                    ),
-                )
+            if (showAll) {
+                TableRow(listOf("", "Played", "Won", "Win %"), header = true)
+                HorizontalDivider()
+                for (tier in Tier.entries) {
+                    val t = mode.tiers[tier] ?: TierStats()
+                    TableRow(listOf(tier.label, t.played.toString(), t.won.toString(), percent(t.won, t.played)))
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("By game", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                TableRow(listOf("", "Played", "Won", "Win %"), header = true)
+                HorizontalDivider()
+                for (rs in RuleSet.ALL) {
+                    val m = stats[rs] ?: ModeStats()
+                    val name = if (rs.game == GameType.KLONDIKE) "Klondike ${rs.label.lowercase()}" else rs.label
+                    TableRow(listOf(name, m.played.toString(), m.won.toString(), percent(m.won, m.played)))
+                }
+            } else {
+                TableRow(listOf("", "Played", "Won", "Win %", "Fastest", "Fewest"), header = true)
+                HorizontalDivider()
+                for (tier in Tier.entries) {
+                    val t = mode.tiers[tier] ?: TierStats()
+                    TableRow(
+                        listOf(
+                            tier.label,
+                            t.played.toString(),
+                            t.won.toString(),
+                            percent(t.won, t.played),
+                            if (t.bestTime < 0) "–" else formatSeconds(t.bestTime),
+                            if (t.fewestMoves < 0) "–" else t.fewestMoves.toString(),
+                        ),
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text(

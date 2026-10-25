@@ -19,7 +19,8 @@ private const val USAGE = """
 Usage: ./gradlew :dealgen:run --args="[options]"
 
   --rules LIST          rule sets to generate, comma-separated, from
-                        draw1, draw3, spider1, spider2, spider4, scorpion2 (default: all of them)
+                        draw1, draw3, spider1, spider2, spider4, scorpion2, yukon,
+                        russian, freecell (default: all of them)
   --per-tier N          deals per tier per rule set (default: 2500)
   --start-seed S        first seed to try (default: 1)
   --threads T           worker threads (default: CPU count - 1)
@@ -94,6 +95,9 @@ private val RULE_NAMES = linkedMapOf(
     "spider2" to RuleSet.SPIDER_2_SUITS,
     "spider4" to RuleSet.SPIDER_4_SUITS,
     "scorpion2" to RuleSet.SCORPION_II,
+    "yukon" to RuleSet.YUKON,
+    "russian" to RuleSet.RUSSIAN,
+    "freecell" to RuleSet.FREECELL,
 )
 
 private val solvers = ThreadLocal<HashMap<Pair<RuleSet, Long>, DealSolver>>()

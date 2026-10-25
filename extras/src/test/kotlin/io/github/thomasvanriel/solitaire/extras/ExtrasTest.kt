@@ -121,7 +121,7 @@ class ExtrasTest {
     @Test
     fun `achievement ids are unique and every one can be earned`() {
         assertEquals(Achievements.ALL.size, Achievements.ALL.map { it.id }.toSet().size)
-        assertEquals(33, Achievements.ALL.size)
+        assertEquals(36, Achievements.ALL.size)
     }
 
     @Test

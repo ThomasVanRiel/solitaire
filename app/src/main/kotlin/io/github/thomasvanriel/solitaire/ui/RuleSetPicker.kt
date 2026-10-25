@@ -34,20 +34,43 @@ import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 
 /**
  * Two scrolling rows of chips: the game (Klondike, Spider, Scorpion II, ...), then its variant (draw 1 or 3,
- * 1/2/4 suits) when it has more than one. Each row scrolls sideways, so more games fit later.
+ * 1/2/4 suits, Yukon or Russian) when it has more than one. Each row scrolls sideways, so more games fit.
+ *
+ * With [onSelectAll], the game row starts with an "All games" chip (selected when [allSelected]), and no
+ * variant row shows while it is selected.
  */
 @Composable
-fun RuleSetPicker(selected: RuleSet, onSelect: (RuleSet) -> Unit, showTitles: Boolean = true) {
+fun RuleSetPicker(
+    selected: RuleSet,
+    onSelect: (RuleSet) -> Unit,
+    showTitles: Boolean = true,
+    onSelectAll: (() -> Unit)? = null,
+    allSelected: Boolean = false,
+) {
     Column {
         if (showTitles) Text("Game", style = MaterialTheme.typography.labelLarge)
         val games = GameType.entries
-        ChipWheel(games.map { it.label }, games.indexOf(selected.game)) { i ->
-            if (games[i] != selected.game) onSelect(defaultFor(games[i]))
+        val withAll = onSelectAll != null
+        val labels = (if (withAll) listOf("All games") else emptyList()) + games.map { it.label }
+        val offset = if (withAll) 1 else 0
+        val selectedIndex = if (withAll && allSelected) 0 else games.indexOf(selected.game) + offset
+        ChipWheel(labels, selectedIndex) { i ->
+            if (withAll && i == 0) {
+                onSelectAll?.invoke()
+            } else {
+                val game = games[i - offset]
+                if (game != selected.game || allSelected) onSelect(if (game == selected.game) selected else defaultFor(game))
+            }
         }
         val variants = RuleSet.ALL.filter { it.game == selected.game }
-        if (variants.size > 1) {
+        if (variants.size > 1 && !(withAll && allSelected)) {
             Spacer(Modifier.height(4.dp))
-            if (showTitles) Text(if (selected.game == GameType.KLONDIKE) "Draw" else "Suits", style = MaterialTheme.typography.labelLarge)
+            val title = when (selected.game) {
+                GameType.KLONDIKE -> "Draw"
+                GameType.SPIDER -> "Suits"
+                else -> "Variant"
+            }
+            if (showTitles) Text(title, style = MaterialTheme.typography.labelLarge)
             ChipWheel(
                 variants.map { if (it.game == GameType.KLONDIKE) (if (it.drawCount == 1) "1 card" else "3 cards") else it.variantLabel },
                 variants.indexOfFirst { it.id == selected.id },

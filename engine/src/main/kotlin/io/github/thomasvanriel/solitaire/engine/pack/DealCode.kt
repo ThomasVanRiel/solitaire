@@ -4,7 +4,7 @@ import io.github.thomasvanriel.solitaire.engine.model.RuleSet
 
 /**
  * A short code that names a deal, for sharing: a two-letter variant prefix and the deal number, such as
- * `K1-100` (Klondike draw 1), `S2-17` (Spider 2 suits) or `SC-6` (Scorpion II). The prefix is needed
+ * `K1-100` (Klondike draw 1), `S2-17` (Spider 2 suits), `SC-6` (Scorpion II) or `FC-9` (FreeCell). The prefix is needed
  * because the same number is a different deal in every variant.
  *
  * Parsing is forgiving: case, spaces, a leading '#' and the dash don't matter.
@@ -18,6 +18,9 @@ object DealCode {
         RuleSet.SPIDER_2_SUITS to "S2",
         RuleSet.SPIDER_4_SUITS to "S4",
         RuleSet.SCORPION_II to "SC",
+        RuleSet.YUKON to "YU",
+        RuleSet.RUSSIAN to "RU",
+        RuleSet.FREECELL to "FC",
     )
 
     fun prefix(ruleSet: RuleSet): String =

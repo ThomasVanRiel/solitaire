@@ -165,10 +165,21 @@ fun Board(
                 // Stock (Spider shows one card per deal left)
                 val klondike = ruleSet.game == GameType.KLONDIKE
                 val stock = l.stockPositions()
-                if (stock.isEmpty()) {
+                if (!ruleSet.hasStock) {
+                    // Yukon and FreeCell have no stock.
+                } else if (stock.isEmpty()) {
                     drawSlot(l.stockRect.topLeft, l.cardSize, l.corner, if (klondike && state.wasteSize > 0) "↻" else null)
                 } else {
                     for (pos in stock) drawFaceDown(pos, l.cardSize, l.corner)
+                }
+
+                // Free cells (FreeCell), leaving out a card being dragged or flying in.
+                for (k in state.cells.indices) {
+                    val r = l.cellRect(k)
+                    val card = state.cells[k]
+                    val away = (hidden is Source.Cell && hidden.index == k) || gone?.cell == k
+                    if (card >= 0 && !away) drawFaceUp(card, r.topLeft, l.cardSize, l.corner)
+                    else drawSlot(r.topLeft, l.cardSize, l.corner, null)
                 }
 
                 // Waste (leaving out the top card while it is being dragged, and cards still flying in)
@@ -179,7 +190,7 @@ fun Board(
 
                 // Foundations
                 when (ruleSet.game) {
-                    GameType.KLONDIKE -> for (suit in 0 until 4) {
+                    GameType.KLONDIKE, GameType.YUKON, GameType.FREECELL -> for (suit in 0 until 4) {
                         val r = l.foundationRect(suit)
                         val f = state.found[suit]
                         val draggingThis = hidden is Source.Foundation && hidden.suit == suit
@@ -211,8 +222,7 @@ fun Board(
                 }
 
                 // Columns
-                val spider = ruleSet.game == GameType.SPIDER
-                val emptyLabel = if (spider) null else "K"
+                val emptyLabel = if (ruleSet.kingsOnlyInEmpty) "K" else null
                 for (c in 0 until state.columns) {
                     val size = state.tabSize[c]
                     val stopAt = minOf(
@@ -257,11 +267,16 @@ private fun cardsOf(s: GameState, source: Source): List<Int> = when (source) {
     Source.Waste -> listOf(s.waste[s.wasteSize - 1])
     is Source.Column -> (source.index until s.tabSize[source.col]).map { s.tab[source.col][it] }
     is Source.Foundation -> listOf(Card.of(source.suit, s.found[source.suit] - 1))
+    is Source.Cell -> listOf(s.cells[source.index])
 }
 
 /** A plain-language summary of the board for screen readers. */
 private fun describe(s: GameState, rs: RuleSet): String = buildString {
-    append("Stock ${s.stockSize} cards. ")
+    if (rs.hasStock) append("Stock ${s.stockSize} cards. ")
+    if (rs.cells > 0) {
+        val held = s.cells.filter { it >= 0 }
+        append(if (held.isEmpty()) "Free cells empty. " else "Free cells: ${held.joinToString { Card.spoken(it) }}. ")
+    }
     if (rs.game == GameType.KLONDIKE) {
         val w = s.wasteTop()
         append(if (w >= 0) "Waste: ${Card.spoken(w)}. " else "Waste empty. ")
@@ -272,6 +287,6 @@ private fun describe(s: GameState, rs: RuleSet): String = buildString {
         append(if (top < 0) "empty" else "${Card.spoken(top)}, ${s.tabDown[c]} hidden")
         append(". ")
     }
-    if (rs.game == GameType.KLONDIKE) append("Foundations: ${s.foundationCount} cards.")
+    if (rs.buildsFoundations) append("Foundations: ${s.foundationCount} cards.")
     else append("Completed suits: ${s.foundationCount / 13} of ${rs.deckSize / 13}.")
 }

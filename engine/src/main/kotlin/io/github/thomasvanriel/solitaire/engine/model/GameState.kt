@@ -8,6 +8,7 @@ package io.github.thomasvanriel.solitaire.engine.model
  * - `found[s]` is how many cards of suit s are on the foundations: 0..13 in Klondike, a multiple of 13 in
  *   Spider and Scorpion, where only complete King-to-Ace runs leave the board (up to 104 in 1-suit Spider).
  * - Spider and Scorpion don't use the waste or [recycles].
+ * - `cells[k]` is the card in FreeCell's free cell k, or -1. Other games have no cells.
  *
  * The fields are public for speed. Only [io.github.thomasvanriel.solitaire.engine.rules.Rules] should
  * change them. The UI should treat states as read-only and use `Rules.apply`, which returns a new state.
@@ -22,13 +23,14 @@ class GameState(
     @JvmField var wasteSize: Int,
     @JvmField val found: IntArray,
     @JvmField var recycles: Int,
+    @JvmField val cells: IntArray = IntArray(0),
 ) {
     /** An empty Klondike position. */
     constructor() : this(COLUMNS, COLUMN_CAPACITY, 52)
 
-    constructor(columns: Int, columnCapacity: Int, deckSize: Int) : this(
+    constructor(columns: Int, columnCapacity: Int, deckSize: Int, cellCount: Int = 0) : this(
         Array(columns) { IntArray(columnCapacity) }, IntArray(columns), IntArray(columns),
-        IntArray(deckSize), 0, IntArray(deckSize), 0, IntArray(4), 0,
+        IntArray(deckSize), 0, IntArray(deckSize), 0, IntArray(4), 0, IntArray(cellCount) { -1 },
     )
 
     /** Number of tableau columns. */
@@ -36,7 +38,7 @@ class GameState(
 
     fun copy(): GameState = GameState(
         Array(columns) { tab[it].copyOf() }, tabSize.copyOf(), tabDown.copyOf(),
-        stock.copyOf(), stockSize, waste.copyOf(), wasteSize, found.copyOf(), recycles,
+        stock.copyOf(), stockSize, waste.copyOf(), wasteSize, found.copyOf(), recycles, cells.copyOf(),
     )
 
     // ---- read helpers ----
@@ -59,12 +61,26 @@ class GameState(
 
     val foundationCount: Int get() = found[0] + found[1] + found[2] + found[3]
 
+    /** Free cells holding no card. */
+    fun freeCells(): Int {
+        var n = 0
+        for (c in cells) if (c < 0) n++
+        return n
+    }
+
+    /** Index of the first empty free cell, or -1. */
+    fun firstFreeCell(): Int {
+        for (k in cells.indices) if (cells[k] < 0) return k
+        return -1
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is GameState) return false
         if (columns != other.columns) return false
         if (stockSize != other.stockSize || wasteSize != other.wasteSize || recycles != other.recycles) return false
         if (!found.contentEquals(other.found)) return false
+        if (!cells.contentEquals(other.cells)) return false
         if (!tabSize.contentEquals(other.tabSize) || !tabDown.contentEquals(other.tabDown)) return false
         for (i in 0 until stockSize) if (stock[i] != other.stock[i]) return false
         for (i in 0 until wasteSize) if (waste[i] != other.waste[i]) return false
@@ -83,6 +99,7 @@ class GameState(
         h = h * 31 + 77
         for (i in 0 until wasteSize) h = h * 31 + waste[i]
         for (s in 0 until 4) h = h * 31 + found[s]
+        for (c in cells) h = h * 31 + c
         return h
     }
 
@@ -93,7 +110,7 @@ class GameState(
         const val COLUMNS = 7
 
         /** An empty position laid out for [rs]. */
-        fun forRules(rs: RuleSet): GameState = GameState(rs.columns, rs.columnCapacity, rs.deckSize)
+        fun forRules(rs: RuleSet): GameState = GameState(rs.columns, rs.columnCapacity, rs.deckSize, rs.cells)
 
         /** 6 face-down cards plus a 13-card run is 19. The extra room is for hand-built test positions. */
         const val COLUMN_CAPACITY = 32

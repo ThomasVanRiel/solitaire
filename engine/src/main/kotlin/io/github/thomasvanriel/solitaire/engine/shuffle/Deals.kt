@@ -56,6 +56,9 @@ object Deals {
      * - Spider: 54 cards round the 10 columns, so columns 1-4 get 6 and columns 5-10 get 5, top card face
      *   up. 50 cards (five deals) are left in the stock.
      * - Scorpion II: 7 rows of 7. Columns 1-3 have their lowest 3 cards face down. 3 cards are left in the stock.
+     * - Yukon: first as Klondike (column c gets c+1 cards, the top one face up), then four rows of face-up
+     *   cards onto columns 2-7. Column 1 has one card; column n has n-1 face-down cards under 5 face-up ones.
+     * - FreeCell: row by row across 8 columns, all face up: columns 1-4 get 7 cards, columns 5-8 get 6.
      */
     fun deal(seed: Long, ruleSet: RuleSet, shuffleVersion: Int = CURRENT_SHUFFLE): GameState {
         val d = deck(seed, ruleSet, shuffleVersion)
@@ -80,6 +83,19 @@ object Deals {
                     for (c in 0 until 7) s.tab[c][s.tabSize[c]++] = d[k++]
                 }
                 for (c in 0 until 3) s.tabDown[c] = 3
+            }
+            GameType.YUKON -> {
+                for (row in 0 until 7) {
+                    for (c in row until 7) s.tab[c][s.tabSize[c]++] = d[k++]
+                }
+                for (c in 0 until 7) s.tabDown[c] = c
+                repeat(4) { for (c in 1 until 7) s.tab[c][s.tabSize[c]++] = d[k++] }
+            }
+            GameType.FREECELL -> {
+                while (k < 52) {
+                    val c = k % 8
+                    s.tab[c][s.tabSize[c]++] = d[k++]
+                }
             }
         }
         while (k < d.size) s.stock[s.stockSize++] = d[k++]

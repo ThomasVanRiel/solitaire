@@ -33,6 +33,8 @@ class Hidden(
     val foundationSuit: Int = -1,
     /** Spider: which completed run (in drawing order) is left out, or -1. */
     val runIndex: Int = -1,
+    /** FreeCell: the free cell whose card is left out, or -1. */
+    val cell: Int = -1,
 )
 
 /** The animation of one move: the position after it, the cards in flight, and what to leave out meanwhile. */
@@ -61,6 +63,7 @@ class MoveAnimation(val after: GameState, val flights: List<Flight>, val hidden:
             var wasteTop = 0
             var foundationSuit = -1
             var runIndex = -1
+            var cell = -1
             var duration = baseMs
             val klondike = ruleSet.game == GameType.KLONDIKE
 
@@ -100,7 +103,7 @@ class MoveAnimation(val after: GameState, val flights: List<Flight>, val hidden:
                 is Move.TableauToFoundation -> {
                     val col = move.col
                     val size = before.tabSize[col]
-                    if (klondike) {
+                    if (ruleSet.buildsFoundations) {
                         val card = before.columnTop(col)
                         foundationSuit = Card.suit(card)
                         flights += Flight(card, dropAt ?: lb.cardOffset(col, size - 1), la.foundationRect(foundationSuit).topLeft)
@@ -132,9 +135,20 @@ class MoveAnimation(val after: GameState, val flights: List<Flight>, val hidden:
                 }
                 is Move.FoundationToTableau ->
                     toColumnTop(Card.of(move.suit, before.found[move.suit] - 1), lb.foundationRect(move.suit).topLeft, move.col)
+                is Move.TableauToCell -> {
+                    val size = before.tabSize[move.col]
+                    cell = before.firstFreeCell()
+                    flights += Flight(before.columnTop(move.col), dropAt ?: lb.cardOffset(move.col, size - 1), la.cellRect(cell).topLeft)
+                }
+                is Move.CellToTableau -> toColumnTop(before.cells[move.cell], lb.cellRect(move.cell).topLeft, move.col)
+                is Move.CellToFoundation -> {
+                    val card = before.cells[move.cell]
+                    foundationSuit = Card.suit(card)
+                    flights += Flight(card, dropAt ?: lb.cellRect(move.cell).topLeft, la.foundationRect(foundationSuit).topLeft)
+                }
             }
             if (flights.isEmpty()) return null
-            return MoveAnimation(after, flights, Hidden(columnFrom, wasteTop, foundationSuit, runIndex), duration)
+            return MoveAnimation(after, flights, Hidden(columnFrom, wasteTop, foundationSuit, runIndex, cell), duration)
         }
     }
 }

@@ -18,6 +18,7 @@ interface DealSolver {
         ): DealSolver = when (ruleSet.game) {
             GameType.KLONDIKE -> Solver(ruleSet, maxNodes, timeLimitMs, isCancelled)
             GameType.SPIDER, GameType.SCORPION -> RunGameSolver(ruleSet, maxNodes, timeLimitMs, isCancelled)
+            GameType.YUKON, GameType.FREECELL -> OpenGameSolver(ruleSet, maxNodes, timeLimitMs, isCancelled)
         }
     }
 }

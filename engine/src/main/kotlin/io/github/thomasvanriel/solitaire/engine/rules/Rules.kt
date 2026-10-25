@@ -31,6 +31,7 @@ object Rules {
     fun isWon(s: GameState): Boolean {
         if (s.stockSize != 0 || s.wasteSize != 0) return false
         for (c in 0 until s.columns) if (s.tabSize[c] != 0) return false
+        for (c in s.cells) if (c >= 0) return false
         return true
     }
 
@@ -71,7 +72,23 @@ object Rules {
             GameType.KLONDIKE -> fitsOnColumn(s, card, col)
             GameType.SPIDER -> n == 0 || Card.rank(card) + 1 == Card.rank(s.tab[col][n - 1])
             GameType.SCORPION -> if (n == 0) Card.rank(card) == Card.KING else Card.followsInSuit(card, s.tab[col][n - 1])
+            GameType.YUKON -> if (n == 0) Card.rank(card) == Card.KING else stacks(rs, card, s.tab[col][n - 1])
+            GameType.FREECELL -> n == 0 || Card.stacksOn(card, s.tab[col][n - 1])
         }
+    }
+
+    /** Yukon and FreeCell: [card] may rest on [onto] (alternating colours, or in suit for Russian). */
+    fun stacks(rs: RuleSet, card: Int, onto: Int): Boolean =
+        if (rs.buildInSuit) Card.followsInSuit(card, onto) else Card.stacksOn(card, onto)
+
+    /**
+     * FreeCell: the longest run that may move as one move onto column [to]: as many as could be moved card
+     * by card using the free cells and the other empty columns, (free cells + 1) × 2^(empty columns).
+     */
+    fun maxRunMove(s: GameState, to: Int): Int {
+        var empty = 0
+        for (c in 0 until s.columns) if (c != to && s.tabSize[c] == 0) empty++
+        return (s.freeCells() + 1) shl empty
     }
 
     fun fitsOnFoundation(s: GameState, card: Int): Boolean = s.found[Card.suit(card)] == Card.rank(card)
@@ -83,6 +100,83 @@ object Rules {
     fun legalMoveCodes(s: GameState, rs: RuleSet, out: IntArray): Int = when (rs.game) {
         GameType.KLONDIKE -> klondikeMoves(s, rs, out)
         GameType.SPIDER, GameType.SCORPION -> runGameMoves(s, rs, out)
+        GameType.YUKON -> yukonMoves(s, rs, out)
+        GameType.FREECELL -> freeCellMoves(s, rs, out)
+    }
+
+    /**
+     * Yukon: to the foundations, then any face-up card with everything on top of it onto another column,
+     * then foundation cards back down.
+     */
+    private fun yukonMoves(s: GameState, rs: RuleSet, out: IntArray): Int {
+        var n = 0
+        val cols = s.columns
+        for (from in 0 until cols) {
+            val size = s.tabSize[from]
+            if (size > 0 && fitsOnFoundation(s, s.tab[from][size - 1])) out[n++] = Move.encode(Move.TYPE_T2F, from, 0, 0)
+        }
+        for (from in 0 until cols) {
+            val size = s.tabSize[from]
+            val col = s.tab[from]
+            for (i in s.tabDown[from] until size) {
+                val card = col[i]
+                for (to in 0 until cols) {
+                    if (to != from && fitsOnColumn(s, rs, card, to)) out[n++] = Move.encode(Move.TYPE_T2T, from, to, size - i)
+                }
+            }
+        }
+        for (suit in 0 until 4) {
+            val f = s.found[suit]
+            if (f == 0) continue
+            val card = Card.of(suit, f - 1)
+            for (to in 0 until cols) if (fitsOnColumn(s, rs, card, to)) out[n++] = Move.encode(Move.TYPE_F2T, suit, to, 0)
+        }
+        return n
+    }
+
+    /**
+     * FreeCell: free cells to the foundations, columns to the foundations, free cells onto columns, runs
+     * onto columns (see [maxRunMove]), then column tops into a free cell.
+     */
+    private fun freeCellMoves(s: GameState, rs: RuleSet, out: IntArray): Int {
+        var n = 0
+        val cols = s.columns
+        val cells = s.cells
+        for (k in cells.indices) {
+            if (cells[k] >= 0 && fitsOnFoundation(s, cells[k])) out[n++] = Move.encode(Move.TYPE_CELL, k, 0, Move.CELL_UP)
+        }
+        for (from in 0 until cols) {
+            val size = s.tabSize[from]
+            if (size > 0 && fitsOnFoundation(s, s.tab[from][size - 1])) out[n++] = Move.encode(Move.TYPE_T2F, from, 0, 0)
+        }
+        for (k in cells.indices) {
+            if (cells[k] < 0) continue
+            for (to in 0 until cols) if (fitsOnColumn(s, rs, cells[k], to)) out[n++] = Move.encode(Move.TYPE_CELL, k, to, Move.CELL_OUT)
+        }
+        val free = s.freeCells()
+        var empty = 0
+        for (c in 0 until cols) if (s.tabSize[c] == 0) empty++
+        for (from in 0 until cols) {
+            val size = s.tabSize[from]
+            if (size == 0) continue
+            val col = s.tab[from]
+            val up = size - s.tabDown[from]
+            var count = 1
+            while (count <= up) {
+                val card = col[size - count]
+                if (count > 1 && !Card.stacksOn(col[size - count + 1], card)) break
+                for (to in 0 until cols) {
+                    if (to == from || !fitsOnColumn(s, rs, card, to)) continue
+                    val otherEmpty = if (s.tabSize[to] == 0) empty - 1 else empty
+                    if (count <= (free + 1) shl otherEmpty) out[n++] = Move.encode(Move.TYPE_T2T, from, to, count)
+                }
+                count++
+            }
+        }
+        if (free > 0) {
+            for (from in 0 until cols) if (s.tabSize[from] > 0) out[n++] = Move.encode(Move.TYPE_CELL, from, 0, Move.CELL_IN)
+        }
+        return n
     }
 
     /**
@@ -219,7 +313,7 @@ object Rules {
             }
             Move.TYPE_T2F -> {
                 val from = Move.a(code)
-                if (rs.game != GameType.KLONDIKE) {
+                if (!rs.buildsFoundations) {
                     // A complete run leaves the board.
                     val suit = Card.suit(s.tab[from][s.tabSize[from] - 1])
                     s.tabSize[from] -= RUN
@@ -248,6 +342,28 @@ object Rules {
                 s.found[suit]--
                 s.tab[to][s.tabSize[to]++] = Card.of(suit, s.found[suit])
                 return code
+            }
+            Move.TYPE_CELL -> when (Move.c(code)) {
+                Move.CELL_IN -> {
+                    val from = Move.a(code)
+                    val k = s.firstFreeCell()
+                    s.cells[k] = s.tab[from][--s.tabSize[from]]
+                    return code or (k shl DRAWN_SHIFT) or flipIfNeeded(s, from)
+                }
+                Move.CELL_OUT -> {
+                    val k = Move.a(code)
+                    val to = Move.b(code)
+                    s.tab[to][s.tabSize[to]++] = s.cells[k]
+                    s.cells[k] = -1
+                    return code
+                }
+                else -> {
+                    val k = Move.a(code)
+                    val suit = Card.suit(s.cells[k])
+                    s.found[suit]++
+                    s.cells[k] = -1
+                    return code or (suit shl SUIT_SHIFT)
+                }
             }
             else -> throw IllegalArgumentException("Bad move code $code")
         }
@@ -291,7 +407,7 @@ object Rules {
                 val from = Move.a(code)
                 val suit = (token ushr SUIT_SHIFT) and 3
                 if (flipped) s.tabDown[from]++
-                if (rs.game != GameType.KLONDIKE) {
+                if (!rs.buildsFoundations) {
                     for (r in Card.KING downTo Card.ACE) s.tab[from][s.tabSize[from]++] = Card.of(suit, r)
                     s.found[suit] -= RUN
                 } else {
@@ -313,6 +429,23 @@ object Rules {
                 val to = Move.b(code)
                 s.tabSize[to]--
                 s.found[suit]++
+            }
+            Move.TYPE_CELL -> when (Move.c(code)) {
+                Move.CELL_IN -> {
+                    val from = Move.a(code)
+                    val k = (token ushr DRAWN_SHIFT) and 15
+                    if (flipped) s.tabDown[from]++
+                    s.tab[from][s.tabSize[from]++] = s.cells[k]
+                    s.cells[k] = -1
+                }
+                Move.CELL_OUT -> {
+                    val to = Move.b(code)
+                    s.cells[Move.a(code)] = s.tab[to][--s.tabSize[to]]
+                }
+                else -> {
+                    val suit = (token ushr SUIT_SHIFT) and 3
+                    s.cells[Move.a(code)] = Card.of(suit, --s.found[suit])
+                }
             }
         }
     }
