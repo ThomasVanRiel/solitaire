@@ -155,7 +155,7 @@ are listed under [Deal packs](#deal-packs).
 If no Android SDK is found (`ANDROID_HOME`, or `sdk.dir` in `local.properties`), the `:app` module is
 skipped so that the engine and deal generator can still be built and tested.
 
-Release builds (`./gradlew :app:assembleRelease`) are minified with R8. See `RELEASING.md` for signing.
+Release builds (`./gradlew :app:assembleRelease`) are minified with R8; `tools/build-release.sh` builds one and copies it to the project root. See `RELEASING.md` for signing.
 
 ### Benchmark
 

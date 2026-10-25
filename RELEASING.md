@@ -39,6 +39,10 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 Without `keystore.properties` the release APK is unsigned (`app-release-unsigned.apk`).
 
+Or in one step: `tools/build-release.sh` runs the tests and lint, builds the release APK and copies it to
+the project root as `solitaire-<versionName>.apk` (git-ignored). An unsigned build gets an `-unsigned`
+suffix, and one made with `-PsignReleaseWithDebugKey` (passed through to Gradle) a `-debugkey` suffix.
+
 To try a release build on your own device without a release key, sign it with the local debug key
 (testing only, never publish this):
 
@@ -62,7 +66,7 @@ shows up there without editing the README.
 With the GitHub CLI (`gh auth login` once):
 
 ```sh
-cp app/build/outputs/apk/release/app-release.apk solitaire-0.4.0.apk
+tools/build-release.sh                  # makes solitaire-0.4.0.apk
 git tag v0.4.0 && git push origin v0.4.0
 gh release create v0.4.0 solitaire-0.4.0.apk --title "0.4.0" --generate-notes
 ```

@@ -13,3 +13,6 @@ captures/
 keystore.properties
 logs/
 screenshots/
+
+# Release APKs copied out by tools/build-release.sh
+/solitaire-*.apk
