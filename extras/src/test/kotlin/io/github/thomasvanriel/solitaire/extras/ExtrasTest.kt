@@ -53,8 +53,6 @@ class ExtrasTest {
     @Test
     fun `notable moments come first`() {
         assertEquals("Your first win. The first of many.", Fortunes.pick(win().copy(firstWinEver = true)))
-        assertEquals("You beat the solver by 1 move. It's sulking.", Fortunes.pick(win(moves = 119)))
-        assertEquals("You beat the solver by 20 moves. It's sulking.", Fortunes.pick(win(moves = 100)))
         assertEquals(
             "A spooky win. The face-down cards were the scariest part.",
             Fortunes.pick(win(now = LocalDateTime.of(2026, 10, 31, 20, 0))),

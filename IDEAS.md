@@ -111,7 +111,6 @@ Thresholds are examples; tune them later.
 | First win on this difficulty | First {tier} win. Moving up in the world. |
 | New best time | New record: {time}. The cards barely had time to move. |
 | New fewest moves | Fewest moves ever: {moves}. Efficient. |
-| Won in fewer moves than the stored solution | You beat the solver by {n} moves. It's sulking. |
 | Won in the same number of moves as the solution | Exactly as many moves as the solver. Are you the solver? |
 | Over twice the solution's moves | {moves} moves. The scenic route. |
 | Under 2 minutes | Did you even look at the cards? |

@@ -53,10 +53,6 @@ object Fortunes {
     internal fun notable(f: WinFacts): List<String> = buildList {
         if (f.firstWinEver) add("Your first win. The first of many.")
         if (f.totalWins in MILESTONES) add("Win number ${f.totalWins}. Someone get this person a cake.")
-        if (f.solutionMoves > 0 && f.moves < f.solutionMoves) {
-            val n = f.solutionMoves - f.moves
-            add("You beat the solver by $n ${if (n == 1) "move" else "moves"}. It's sulking.")
-        }
         if (f.firstWinInRuleSet) add("First ${f.ruleSet.label} win. Welcome to the club.")
         when (f.streak) {
             100 -> add("A hundred in a row. Please teach us.")
