@@ -298,8 +298,8 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
 - `ui/FeltSurprise`: a faint swirl on the felt on about 1 deal in 25, chosen by a hash of the deal number.
 - The fun bits (`extras/`, pure Kotlin, tested by `:extras:test`): `Fortunes` (win line), `Greetings`
   (New game), `Quips` (stuck banner, leaving a game unwon, Restart), `Achievements` and `Scorecards`.
-  Notable moments (first wins, records, streaks, holidays) always get their line; otherwise a line about the
-  game sometimes, else a random one seeded by the deal number. A line is never the same as the last one of
+  Notable moments (first wins, milestones, streaks, holidays) always get their line; otherwise a line about the
+  game (records included) sometimes, else a random one seeded by the deal number. A line is never the same as the last one of
   its kind. Greetings go: first game, holiday, a long absence, then sometimes a line for coming back, an
   unfinished game, a streak or the day of the week, else one for the time of day; the pick is the same
   within an hour. `ExtrasStore` ("extras" preferences) keeps unlocked achievement ids, the counters the stats

@@ -108,7 +108,7 @@ Thresholds are examples; tune them later.
 |---|---|
 | First win ever | Your first win. The first of many. |
 | First win in this game type | First {game} win. Welcome to the club. |
-| First win on this difficulty | First {tier} win. Moving up in the world. |
+| First win on this difficulty in this game | First {tier} win in {game}. Moving up in the world. |
 | New best time | New record: {time}. The cards barely had time to move. |
 | New fewest moves | Fewest moves ever: {moves}. Efficient. |
 | Won in the same number of moves as the solution | Exactly as many moves as the solver. Are you the solver? |
@@ -128,7 +128,7 @@ Thresholds are examples; tune them later.
 | Streak 5 | Five in a row. You are on fire. Not literally, we hope. |
 | Streak 10 | Ten in a row. Statistically suspicious. |
 | Streak 25 | Twenty-five in a row. The cards fear you now. |
-| Streak broken, then a win | The streak is dead. Long live the streak. |
+| Streak of 3+ broken, then a win | The streak is dead. Long live the streak. |
 | 10th / 50th / 100th / 500th / 1000th win | Win number {n}. Someone get this person a cake. |
 | Win rate over 90% (at least 20 played) | {rate}% win rate. Are you okay? |
 | Won on deal number {n} where n has a pattern (1111, 1234, 777, ...) | Deal #{n}. What a lovely number. |

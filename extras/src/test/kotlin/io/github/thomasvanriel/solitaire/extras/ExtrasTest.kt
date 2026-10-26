@@ -53,6 +53,16 @@ class ExtrasTest {
     @Test
     fun `notable moments come first`() {
         assertEquals("Your first win. The first of many.", Fortunes.pick(win().copy(firstWinEver = true)))
+        // Frequent moments are ordinary lines, not notable ones.
+        val record = win(tier = Tier.EXPERT, usedUndo = false).copy(newBestTime = true, newFewestMoves = true)
+        assertTrue(Fortunes.notable(record).isEmpty())
+        assertTrue("Expert, no undo. Show-off." in Fortunes.common(record))
+        assertTrue(Fortunes.notable(win(streak = 1).copy(lostStreak = 2)).isEmpty())
+        assertEquals("The streak is dead. Long live the streak.", Fortunes.pick(win(streak = 1).copy(lostStreak = 3)))
+        assertEquals(
+            "First Hard win in Spider 2 suits. Moving up in the world.",
+            Fortunes.pick(win(ruleSet = RuleSet.SPIDER_2_SUITS, tier = Tier.HARD).copy(firstWinInTier = true)),
+        )
         assertEquals(
             "A spooky win. The face-down cards were the scariest part.",
             Fortunes.pick(win(now = LocalDateTime.of(2026, 10, 31, 20, 0))),

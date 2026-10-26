@@ -35,8 +35,8 @@ data class WinFacts(
 /** The one-line fortune on the win screen. */
 object Fortunes {
     /**
-     * Notable moments (first wins, records, streaks, holidays) always get their line. Otherwise a line about
-     * the game or the time of day, sometimes, or a random one picked from the deal number, so friends who
+     * Notable moments (first wins, milestones, streaks, holidays) always get their line. Otherwise a line about
+     * the game (records included) or the time of day, sometimes, or a random one picked from the deal number, so friends who
      * share a deal code see the same fortune. Never [previous] when another line is possible.
      */
     fun pick(f: WinFacts, previous: String? = null): String {
@@ -62,17 +62,18 @@ object Fortunes {
             5 -> add("Five in a row. You are on fire. Not literally, we hope.")
             3 -> add("Three in a row. Something is happening.")
         }
-        if (f.newBestTime) add("New record: ${formatTime(f.seconds)}. The cards barely had time to move.")
-        if (f.newFewestMoves) add("Fewest moves ever: ${f.moves}. Efficient.")
-        if (f.tier == Tier.EXPERT && !f.usedUndo) add("Expert, no undo. Show-off.")
         if (f.lostStreak >= 10 && f.streak == 1) add("Your streak of ${f.lostStreak} has been avenged. Sort of.")
-        if (f.lostStreak > 0 && f.streak == 1) add("The streak is dead. Long live the streak.")
-        if (f.firstWinInTier && f.tier != Tier.EASY) add("First ${f.tier.label} win. Moving up in the world.")
+        if (f.lostStreak >= 3 && f.streak == 1) add("The streak is dead. Long live the streak.")
+        if (f.firstWinInTier && f.tier != Tier.EASY) add("First ${f.tier.label} win in ${f.ruleSet.label}. Moving up in the world.")
         if (f.solutionMoves > 0 && f.moves == f.solutionMoves) add("Exactly as many moves as the solver. Are you the solver?")
         if (prettyNumber(f.seed)) add("Deal #${f.seed}. What a lovely number.")
     }
 
     internal fun common(f: WinFacts): List<String> = buildList {
+        // Records and no-undo Expert wins happen often, so they take their turn here rather than always winning.
+        if (f.newBestTime) add("New record: ${formatTime(f.seconds)}. The cards barely had time to move.")
+        if (f.newFewestMoves) add("Fewest moves ever: ${f.moves}. Efficient.")
+        if (f.tier == Tier.EXPERT && !f.usedUndo) add("Expert, no undo. Show-off.")
         if (f.seconds in 1 until 120) add("Did you even look at the cards?")
         if (f.seconds > 2 * 3600) add("You've been playing this one longer than some films.")
         else if (f.seconds > 30 * 60) add("That took ${formatTime(f.seconds)}. Slow and steady wins the deal.")
