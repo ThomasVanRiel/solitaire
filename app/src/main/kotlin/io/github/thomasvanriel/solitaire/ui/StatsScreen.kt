@@ -222,7 +222,9 @@ fun StatsScreen(
                         append(SOURCE_URL.removePrefix("https://"))
                     }
                 },
+                modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
             )
         }
     }
