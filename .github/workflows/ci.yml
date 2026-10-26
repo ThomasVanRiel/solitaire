@@ -20,16 +20,20 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - uses: android-actions/setup-android@v3
-      - name: Engine tests
-        run: ./gradlew :engine:test
+      - name: Engine and extras tests
+        run: ./gradlew :engine:test :extras:test
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug
       - name: Lint
         run: ./gradlew :app:lint
+      # Unsigned (there is no keystore in CI), but it catches release-only R8 problems.
+      - name: Build release APK
+        run: ./gradlew :app:assembleRelease
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: reports
           path: |
             engine/build/reports
+            extras/build/reports
             app/build/reports

@@ -32,7 +32,11 @@ class DealRepository(private val context: Context) {
         return packs.getOrPut(name) { context.assets.open("deals/$name").use { DealPack.read(it) } }
     }
 
-    /** The next deal for [ruleSet] and [tier]. Call off the main thread. */
+    /**
+     * The next deal for [ruleSet] and [tier]. Call off the main thread. Synchronized, so two calls never serve
+     * the same deal.
+     */
+    @Synchronized
     fun next(ruleSet: RuleSet, tier: Tier): ServedDeal {
         val pack = pack(ruleSet, tier)
         val size = pack.entries.size

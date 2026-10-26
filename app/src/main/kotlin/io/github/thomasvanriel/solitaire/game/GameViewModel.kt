@@ -143,6 +143,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var scriptJob: Job? = null
     private var noticeJob: Job? = null
     private var hintJob: Job? = null
+    /** The deal being loaded; a newer request cancels it, so a slow load can't replace a newer game. */
+    private var dealJob: Job? = null
 
     val lastRuleSet: RuleSet get() = store.lastRuleSet
     val lastTier: Tier get() = store.lastTier
@@ -251,7 +253,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val quip = abandonCurrent()
         store.lastRuleSet = ruleSet
         store.lastTier = tier
-        viewModelScope.launch {
+        dealJob?.cancel()
+        dealJob = viewModelScope.launch {
             startNewGame(ruleSet, tier)
             quip?.let { showNotice(it, QUIP_MILLIS) }
         }
@@ -262,7 +265,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
      * first); otherwise the current game carries on and a notice says why.
      */
     fun playDeal(ruleSet: RuleSet, seed: Long) {
-        viewModelScope.launch {
+        dealJob?.cancel()
+        dealJob = viewModelScope.launch {
             val deal = withContext(Dispatchers.IO) { deals.findInAnyTier(seed, ruleSet) }
             if (deal == null) {
                 showNotice("Deal ${DealCode.format(ruleSet, seed)} isn't in this version of the app")
@@ -285,7 +289,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         scriptJob?.cancel()
         // A won game's time went in with the win.
         if (s.counted && !s.assisted && !s.winRecorded) statsStore.addPlayTime(s.ruleSet, s.tier, s.elapsedSeconds)
-        if (!s.counted || s.won || s.assisted) return null
+        // Settled now: a second request before the next deal is on screen mustn't count this game again.
+        if (s.counted) _state.value = s.copy(counted = false)
+        if (!s.counted || s.won || s.winRecorded || s.assisted) return null
         val lostStreak = statsStore.load(s.ruleSet).currentStreak
         statsStore.recordLoss(s.ruleSet)
         extras.recordAbandoned(s.ruleSet, lostStreak)
@@ -388,7 +394,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun undo() {
         val s = _state.value
         val game = s.game ?: return
-        if (s.busy || !game.canUndo) return
+        // No undo after a win: the win is already in the statistics.
+        if (s.busy || !game.canUndo || s.won || s.winRecorded) return
         // In Spider and Scorpion, taking off a run belongs to the move before it: undo both together.
         var g = game
         if (!g.ruleSet.buildsFoundations) {
@@ -633,6 +640,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         _unlocked.value = emptySet()
         _stats.value = RuleSet.ALL.associateWith { ModeStats() }
         _days.value = DayStats()
+        // The game on the table starts over for the statistics too: it counts as played again from its next
+        // move, and hints shown before the reset no longer mark it. A win already recorded stays recorded, so
+        // it isn't counted twice.
+        _state.update { it.copy(counted = false, hintsUsed = 0) }
+        save()
     }
 
     private fun dayStats() = DayStats(extras.daysPlayed, extras.currentDayStreak(LocalDate.now()), extras.bestDayStreak)

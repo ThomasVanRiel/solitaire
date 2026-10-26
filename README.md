@@ -81,8 +81,10 @@ game and statistics are kept.
   access.
 - Statistics per game variant and difficulty: games played and won, win rate, streaks, fastest win, fewest
   moves, average time, moves, failed moves and undos per win, time played, wins without undo or hints,
-  hints, undos, restarts and times stuck, and days played with the run of days in a row, plus an *All games* view with the totals. They stay on
-  your phone.
+  hints, undos, restarts and times stuck, and days played with the run of days in a row, plus an *All
+  games* view with the totals. The app never sends them anywhere; Android's own backup and phone-to-phone
+  transfer may include them, together with the saved game. The bottom of the screen shows the app version
+  and a link to the source on GitHub, where new versions are published.
 
 **A bit of silliness**
 - A fortune-cookie line on the win screen (well over a hundred of them): random (picked from the deal
@@ -150,10 +152,8 @@ step for Linux and Windows.
 ./gradlew :dealgen:run --args="--per-tier 2500"
 ```
 
-The packs currently shipped hold 100 deals per difficulty per game variant (`--per-tier 100`).
-`--per-tier 2500` would take several hours on 8 threads (4-suit Spider and Scorpion II are the slow ones,
-because few of their deals are solved) and the packs would grow to about 6.4 MB in total. All options
-are listed under [Deal packs](#deal-packs).
+The packs currently shipped hold 2500 deals per difficulty per game variant (`--per-tier 2500`), about
+7.9 MB in total. All options are listed under [Deal packs](#deal-packs).
 
 If no Android SDK is found (`ANDROID_HOME`, or `sdk.dir` in `local.properties`), the `:app` module is
 skipped so that the engine and deal generator can still be built and tested.
@@ -205,6 +205,26 @@ The output is deterministic for the same options. Each solution is stored as one
 index in the rules engine's legal-move list (an index of 255 or more, which only Spider can reach, takes
 three bytes). After gzip that comes to about 85 bytes per Klondike deal, 20 for Scorpion II, 20–40 for
 Yukon and Russian, 70 for FreeCell, and 90–250 for Spider (longer solutions).
+
+### Cost of generating the packs
+
+The shipped packs (`--per-tier 2500`, 90,000 deals) took 50 minutes on an i7-14700K (28 threads, 27
+workers). The CPU ran at its 253 W power limit the whole time, so generation used about **0.21 kWh**
+(CPU package only, measured with btop), which is about 2.4 mWh (8.5 J) per deal, or roughly 6 cents of
+electricity. 4-suit Spider and Scorpion II used 82% of it, because few of their deals are solved.
+
+| Game | Seeds tried | Time | CPU energy |
+|---|---:|---:|---:|
+| Scorpion II | 138,294 | 1,517.5 s | 107 Wh |
+| Spider, 4 suits | 69,946 | 974.9 s | 69 Wh |
+| Klondike, draw 1 | 21,281 | 183.0 s | 13 Wh |
+| Klondike, draw 3 | 24,679 | 170.5 s | 12 Wh |
+| Yukon | 19,700 | 103.8 s | 7.3 Wh |
+| Spider, 2 suits | 11,322 | 27.5 s | 1.9 Wh |
+| Russian | 327,925 | 20.0 s | 1.4 Wh |
+| FreeCell | 12,007 | 11.4 s | 0.8 Wh |
+| Spider, 1 suit | 11,379 | 7.7 s | 0.5 Wh |
+| **Total** | **636,533** | **3,016 s** | **212 Wh** |
 
 ## Debug tools
 

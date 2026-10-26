@@ -32,8 +32,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import io.github.thomasvanriel.solitaire.BuildConfig
 import io.github.thomasvanriel.solitaire.engine.difficulty.Tier
@@ -47,6 +54,9 @@ import io.github.thomasvanriel.solitaire.game.TierStats
 import io.github.thomasvanriel.solitaire.game.combinedStats
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+
+/** Where the source code and new releases are. */
+private const val SOURCE_URL = "https://github.com/ThomasVanRiel/solitaire"
 
 @Composable
 fun StatsScreen(
@@ -159,7 +169,8 @@ fun StatsScreen(
                 Spacer(Modifier.height(16.dp))
                 Text("Wins by difficulty", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
-                TableRow(listOf("", "Fastest", "Avg time", "Fewest", "Avg moves", "Avg failed"), header = true)
+                // Explicit breaks, so the "Avg" labels all wrap alike instead of only where they overflow.
+                TableRow(listOf("", "Fastest", "Avg\ntime", "Fewest", "Avg\nmoves", "Avg\nfailed"), header = true)
                 HorizontalDivider()
                 for (tier in Tier.entries) {
                     val t = mode.tiers[tier] ?: TierStats()
@@ -182,7 +193,8 @@ fun StatsScreen(
                     "Hints used counts every hint shown. Time played adds a game's clock when it is won, left or " +
                     "restarted. Time played, undos, restarts, times stuck and the averages count from version 0.6.2. " +
                     "A day counts when a game is started on it. A game counts as played from its first move; starting " +
-                    "a new game before winning ends the streak. Statistics stay on this device.",
+                    "a new game before winning ends the streak. The app never sends your statistics anywhere; " +
+                    "Android's own backup may include them, so they can move with you to a new phone.",
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(24.dp))
@@ -194,7 +206,24 @@ fun StatsScreen(
             Spacer(Modifier.height(24.dp))
             OutlinedButton(onClick = { confirmReset = true }) { Text("Reset statistics") }
             Spacer(Modifier.height(16.dp))
-            Text("Version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
+            // Opening the link hands it to the browser, so the app itself still needs no network access.
+            val uriHandler = LocalUriHandler.current
+            val linkStyle = TextLinkStyles(
+                SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline),
+            )
+            Text(
+                buildAnnotatedString {
+                    append("Version ${BuildConfig.VERSION_NAME} · ")
+                    // No browser installed must not crash the app, so the click is handled here.
+                    val link = LinkAnnotation.Url(SOURCE_URL, linkStyle) {
+                        runCatching { uriHandler.openUri(SOURCE_URL) }
+                    }
+                    withLink(link) {
+                        append(SOURCE_URL.removePrefix("https://"))
+                    }
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 
@@ -246,11 +275,16 @@ private fun SummaryLine(label: String, value: String) {
 
 @Composable
 private fun TableRow(cells: List<String>, header: Boolean = false) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Headers sit on the bottom line, next to the divider, whether they take one line or two.
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = if (header) Alignment.Bottom else Alignment.CenterVertically,
+    ) {
         cells.forEachIndexed { i, text ->
             Text(
                 text,
-                modifier = Modifier.weight(if (i == 0) 1.5f else 1f),
+                // A small gap, so neighbouring right-aligned labels never run into each other.
+                modifier = Modifier.weight(if (i == 0) 1.5f else 1f).padding(start = if (i == 0) 0.dp else 4.dp),
                 textAlign = if (i == 0) TextAlign.Start else TextAlign.End,
                 style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium,
                 fontWeight = if (header) FontWeight.Bold else null,

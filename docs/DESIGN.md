@@ -232,8 +232,9 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
 - `DealCode`: a two-letter variant prefix and the deal number (`K1`, `K3`, `S1`, `S2`, `S4`, `SC`, `YU`,
   `RU`, `FC`, e.g. `S2-17`). Case, spaces, `#` and the dash are ignored.
 - `dealgen` processes seeds in ordered parallel batches, so output is deterministic.
-- Shipped: 100 deals per tier per rule set (3,600 deals). At 2,500 per tier the packs would be about 6.4 MB
-  in total and take several hours to generate on 8 threads (4-suit Spider and Scorpion II are the slow ones).
+- Shipped: 2,500 deals per tier per rule set (90,000 deals), about 7.9 MB in total. Generating them took
+  50 minutes on 27 worker threads (i7-14700K); 4-suit Spider and Scorpion II take most of it, because few
+  of their deals are solved. The README has the times per game.
 - Changing the rules or the order of the legal-move list invalidates the packs; regenerate them.
 
 ## App (`app/`)
@@ -241,7 +242,9 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
 - `GameViewModel` exposes `StateFlow<GameUiState>`; moves go through the engine's `Game`/`Rules`. There is
   no solver on the device.
 - `DealRepository` serves pack deals in order per (rule set, tier), cycling when a pack runs out, and replays
-  each proof before serving. `findInAnyTier` looks up a deal code.
+  each proof before serving (`next` is synchronized, so two requests never get the same deal). `findInAnyTier`
+  looks up a deal code. The view model keeps one deal-loading job; a newer request cancels the older one, so
+  a slow load can't replace a newer game.
 - `SavedGameStore` (SharedPreferences) saves seed, rule set, tier, moves (3 bytes each, key `moves3`; the old
   2-byte `moves` key still loads), time and the stats flags after every move. The game is rebuilt by replay.
   Preferences open lazily, first accessed on `Dispatchers.IO`.
@@ -259,7 +262,10 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   games; before 0.6.2 only the run was kept, so the other two start from it. Hints shown are counted, and so are wins that used a hint ("won
   without hints" is won minus those, so wins from before hints existed count as without). A game counts
   from its first move. New game before winning is a loss
-  and ends the streak. Restart is the same game but counts as using undo. Debug autoplay never counts.
+  and ends the streak, counted once even if New game is pressed again before the next deal shows. Restart
+  is the same game but counts as using undo. There is no undo after a win, so a recorded win can't turn
+  into a loss. Reset statistics also resets the game on the table: it counts as played again from its next
+  move and forgets hints shown before. Debug autoplay never counts.
 - Board (`ui/BoardLayout`, `ui/Board`, `ui/CardPainter`, `ui/SuitShapes`): one Compose Canvas; suits are
   vector shapes. Portrait: foundations left, stock far right with the waste beside it. Landscape: foundations
   down the left edge, stock down the right. Spider and Scorpion II leave a small gap where a same-suit
