@@ -190,11 +190,7 @@ fun StatsScreen(
             Spacer(Modifier.height(8.dp))
             Text(
                 "Fewest = fewest moves in a win. Averages are over wins. A failed move is one the rules refuse. " +
-                    "Hints used counts every hint shown. Time played adds a game's clock when it is won, left or " +
-                    "restarted. Time played, undos, restarts, times stuck and the averages count from version 0.6.2. " +
-                    "A day counts when a game is started on it. A game counts as played from its first move; starting " +
-                    "a new game before winning ends the streak. The app never sends your statistics anywhere; " +
-                    "Android's own backup may include them, so they can move with you to a new phone.",
+                    "A game counts as played from its first move; starting a new one before winning ends the streak.",
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(24.dp))

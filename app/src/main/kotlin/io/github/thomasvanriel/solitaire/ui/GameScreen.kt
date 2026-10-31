@@ -400,13 +400,6 @@ private fun NewGameDialog(
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(greeting, style = MaterialTheme.typography.titleMedium, fontStyle = FontStyle.Italic)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Every deal can be won. Each one comes with a winning sequence that the game's own " +
-                        "rules have checked. You can't see the face-down cards, so you may still get " +
-                        "stuck: use Undo and try another way.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
                 Spacer(Modifier.height(12.dp))
                 RuleSetPicker(RuleSet.byId(ruleSet), onSelect = { ruleSet = it.id })
                 Spacer(Modifier.height(4.dp))
