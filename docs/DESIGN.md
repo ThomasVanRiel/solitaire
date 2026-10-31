@@ -270,8 +270,9 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   vector shapes. Portrait: foundations left, stock far right with the waste beside it. Landscape: foundations
   down the left edge, stock down the right. Spider and Scorpion II leave a small gap where a same-suit
   sequence breaks (12% and 7% of a card height).
-- Tap sends a card to the best place (Klondike and Yukon: foundation, then non-empty columns, then an empty
-  column for a King; FreeCell: foundation, non-empty columns, a free cell, an empty column; Spider/Scorpion:
+- Tap sends a card to the best place (Klondike and Yukon: non-empty columns, then the foundation, then an
+  empty column; FreeCell: non-empty columns, foundation, a free cell, an empty column; a card that fits on
+  the board stays in play rather than going up; Spider/Scorpion:
   same-suit card, any card, empty column). Drag highlights legal targets; dropping on any free cell uses the
   first empty one. A FreeCell run that fits but is too long for the free room gets a notice saying how many
   cards can move.

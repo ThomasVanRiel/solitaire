@@ -433,7 +433,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Sends the tapped card (or run) to the best place: its foundation first, then the most useful column. */
+    /** Sends the tapped card (or run) to the best place: see [candidateMoves] and [runGameCandidates]. */
     fun tap(source: Source) {
         val game = _state.value.game ?: return
         for (move in candidateMoves(game.state, source)) {
@@ -512,22 +512,30 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Tap order where foundations are built: on a card in another column, then the foundation, then (FreeCell)
+     * a free cell, then an empty column. A card that fits somewhere on the board stays in play.
+     */
     private fun candidateMoves(s: GameState, source: Source): List<Move> {
         val ruleSet = _state.value.game?.ruleSet ?: return emptyList()
         if (!ruleSet.buildsFoundations) return runGameCandidates(s, source)
-        val columns = columnPreference(s, source)
+        val (onCards, intoEmpty) = columnPreference(s, source)
+            .filter { !(source is Source.Column && it == source.col) }
+            .partition { s.tabSize[it] > 0 }
         return when (source) {
-            Source.Waste -> listOf<Move>(Move.WasteToFoundation) + columns.map { Move.WasteToTableau(it) }
+            Source.Waste ->
+                onCards.map<Int, Move> { Move.WasteToTableau(it) } + Move.WasteToFoundation +
+                    intoEmpty.map { Move.WasteToTableau(it) }
             is Source.Column -> {
                 val count = s.tabSize[source.col] - source.index
                 val toFoundation = if (count == 1) listOf<Move>(Move.TableauToFoundation(source.col)) else emptyList()
-                val toColumns = columns.filter { it != source.col }.map { Move.TableauToTableau(source.col, count, it) }
-                // FreeCell: a single card goes to a free cell before an empty column.
                 val toCell = if (count == 1 && ruleSet.cells > 0) listOf<Move>(Move.TableauToCell(source.col)) else emptyList()
-                val (onCards, intoEmpty) = toColumns.partition { s.tabSize[it.to] > 0 }
-                toFoundation + onCards + toCell + intoEmpty
+                onCards.map<Int, Move> { Move.TableauToTableau(source.col, count, it) } + toFoundation + toCell +
+                    intoEmpty.map { Move.TableauToTableau(source.col, count, it) }
             }
-            is Source.Cell -> listOf<Move>(Move.CellToFoundation(source.index)) + columns.map { Move.CellToTableau(source.index, it) }
+            is Source.Cell ->
+                onCards.map<Int, Move> { Move.CellToTableau(source.index, it) } + Move.CellToFoundation(source.index) +
+                    intoEmpty.map { Move.CellToTableau(source.index, it) }
         }
     }
 
