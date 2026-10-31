@@ -47,7 +47,8 @@ class MoveAnimation(val after: GameState, val flights: List<Flight>, val hidden:
     companion object {
         /**
          * The animation for [move] from [before] to [after], or null if nothing should fly (a recycle).
-         * [dropAt] is where the player let go of dragged cards, if this move was a drop.
+         * [dropAt] is where the player let go of dragged cards, if this move was a drop (or where the cards
+         * are now, if this move replaces the one before it).
          */
         fun of(
             before: GameState,
@@ -58,9 +59,10 @@ class MoveAnimation(val after: GameState, val flights: List<Flight>, val hidden:
             height: Float,
             dropAt: Offset?,
             baseMs: Int,
+            leftHanded: Boolean,
         ): MoveAnimation? {
-            val lb = BoardLayout(width, height, before, ruleSet)
-            val la = BoardLayout(width, height, after, ruleSet)
+            val lb = BoardLayout(width, height, before, ruleSet, leftHanded)
+            val la = BoardLayout(width, height, after, ruleSet, leftHanded)
             val columnFrom = after.tabSize.copyOf()
             val flights = ArrayList<Flight>()
             var wasteTop = 0

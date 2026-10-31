@@ -276,6 +276,13 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   same-suit card, any card, empty column). Drag highlights legal targets; dropping on any free cell uses the
   first empty one. A FreeCell run that fits but is too long for the free room gets a notice saying how many
   cards can move.
+- Tapping the card a tap just moved (while that is still the last move) takes the move back and plays the
+  tapped card's next legal place in the same order, going round, so the move count doesn't grow. It stops
+  once the card is on a foundation (nothing there can be tapped). The board animates such a swapped last
+  move from where the card was shown.
+- Left-handed (*Stock on the left* in New game, stored in the `game` preferences): `BoardLayout` mirrors
+  everything but the columns, which keep their order; foundations and free cells still run left to right,
+  and draw-3's waste still fans to the left so ranks show.
 - Portrait FreeCell has its free cells at the top left and the foundations at the top right; in landscape
   the cells are a 2×2 block on the left and the foundations one on the right. Yukon has no stock slot.
 - The game finishes itself when `Endgame.canFinish` says so (Klondike, Yukon, FreeCell).

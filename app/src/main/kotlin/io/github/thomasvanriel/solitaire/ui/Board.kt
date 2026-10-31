@@ -52,6 +52,7 @@ fun Board(
     legalTargets: (Source) -> List<Target>,
     seed: Long,
     animationMillis: Int,
+    leftHanded: Boolean,
     modifier: Modifier = Modifier,
     hint: Move? = null,
 ) {
@@ -73,8 +74,8 @@ fun Board(
 
         // The steps from what is on screen to [game], worked out in the same composition that brings the new
         // game, so its very first frame already shows the cards at their starting places (never at the target).
-        val steps = remember(game, widthPx, heightPx) {
-            animationSteps(shownGame, game, widthPx, heightPx, dropAt, animationMillis)
+        val steps = remember(game, widthPx, heightPx, leftHanded) {
+            animationSteps(shownGame, game, widthPx, heightPx, dropAt, animationMillis, leftHanded)
         }
 
         LaunchedEffect(game) {
@@ -94,9 +95,9 @@ fun Board(
         val pending = shownGame !== game
         val anim = if (pending) steps.firstOrNull() else animation
         val state = anim?.after ?: game.state
-        val layout = BoardLayout(widthPx, heightPx, state, ruleSet)
+        val layout = BoardLayout(widthPx, heightPx, state, ruleSet, leftHanded)
         // Taps and drags always work on the real (final) position.
-        val inputLayout = if (anim == null) layout else BoardLayout(widthPx, heightPx, game.state, ruleSet)
+        val inputLayout = if (anim == null) layout else BoardLayout(widthPx, heightPx, game.state, ruleSet, leftHanded)
 
         val currentLayout by rememberUpdatedState(inputLayout)
         val currentState by rememberUpdatedState(game.state)
@@ -258,7 +259,10 @@ fun Board(
     }
 }
 
-/** The animation steps from [prev] to [game]: only for a few moves played forward from what was on screen. */
+/**
+ * The animation steps from [prev] to [game]: only for a few moves played forward from what was on screen, or
+ * for a last move swapped for another (a card tapped again), which flies from where the card is now.
+ */
 private fun animationSteps(
     prev: Game?,
     game: Game,
@@ -266,16 +270,36 @@ private fun animationSteps(
     height: Float,
     dropAt: Offset?,
     baseMs: Int,
+    leftHanded: Boolean,
 ): List<MoveAnimation> {
     if (prev == null || prev === game) return emptyList()
     val from = prev.moves.size
     val to = game.moves.size
+    val swapped = prev.initial === game.initial && to == from && to > 0 &&
+        game.moves.subList(0, to - 1) == prev.moves.subList(0, to - 1) && game.moves.last() != prev.moves.last()
+    if (swapped) {
+        val now = BoardLayout(width, height, prev.state, game.ruleSet, leftHanded)
+        val s = prev.state
+        val at = when (val m = prev.moves.last()) {
+            is Move.TableauToTableau -> now.cardOffset(m.to, s.tabSize[m.to] - m.count)
+            is Move.WasteToTableau -> now.cardOffset(m.col, s.tabSize[m.col] - 1)
+            is Move.CellToTableau -> now.cardOffset(m.col, s.tabSize[m.col] - 1)
+            is Move.TableauToCell -> now.cellRect(prev.stateAt(to - 1).firstFreeCell()).topLeft
+            else -> return emptyList()
+        }
+        return listOfNotNull(
+            MoveAnimation.of(
+                game.stateAt(to - 1), game.state, game.moves.last(), game.ruleSet, width, height,
+                dropAt = at, baseMs = baseMs, leftHanded = leftHanded,
+            ),
+        )
+    }
     val forward = prev.initial === game.initial && to > from && to - from <= 4 && game.moves.subList(0, from) == prev.moves
     if (!forward) return emptyList()
     return (from until to).mapNotNull { i ->
         MoveAnimation.of(
             game.stateAt(i), game.stateAt(i + 1), game.moves[i], game.ruleSet, width, height,
-            dropAt = if (i == from) dropAt else null, baseMs = baseMs,
+            dropAt = if (i == from) dropAt else null, baseMs = baseMs, leftHanded = leftHanded,
         )
     }
 }

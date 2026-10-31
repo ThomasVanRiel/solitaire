@@ -54,7 +54,9 @@ game and statistics are kept.
 
 **Playing**
 - Tap a card to send it to the best place, or drag it; legal targets light up while you drag. Cards glide
-  unhurriedly to their new place.
+  unhurriedly to their new place. A tapped card that fits on a column stays in play rather than going to
+  its foundation; tap it again straight away to send it on to the next place it can go (another column,
+  then the foundation), still as one move.
 - A calm, soft look: muted sage felt, warm linen cards and gentle fades instead of sudden pop-ups.
 - Unlimited undo, and a Restart button to replay the same deal from the start.
 - Failed moves are counted: tapping a card that has nowhere to go, dropping a card where it can't go, or
@@ -70,7 +72,8 @@ game and statistics are kept.
 - In Spider and Scorpion II there is a little extra space wherever a same-suit sequence breaks, so valid
   sequences sit together.
 - The stock sits on the right, under your thumb; the foundations are on the left. In landscape they move
-  beside the columns: foundations down the left edge, the stock down the right.
+  beside the columns: foundations down the left edge, the stock down the right. *Stock on the left* in New
+  game mirrors this for left-handed play.
 - Your game is saved after every move, and survives the app being closed or killed.
 
 **Sharing and statistics**

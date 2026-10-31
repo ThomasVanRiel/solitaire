@@ -27,6 +27,9 @@ import io.github.thomasvanriel.solitaire.game.Target
  * column; Spider's deals fan downwards), with the columns in between using the full height. FreeCell has its
  * free cells on the left (2×2) and its foundations on the right (2×2); Yukon has nothing on the right.
  *
+ * **Left-handed** ([leftHanded]): everything but the columns is mirrored, so the stock is at the left. The
+ * columns keep their order, and foundations and free cells still run left to right.
+ *
  * Column fans shrink so that a long column always fits.
  */
 class BoardLayout(
@@ -34,6 +37,7 @@ class BoardLayout(
     val height: Float,
     private val state: GameState,
     private val ruleSet: RuleSet,
+    private val leftHanded: Boolean,
 ) {
     val columns: Int = state.columns
     private val game = ruleSet.game
@@ -81,28 +85,49 @@ class BoardLayout(
         return x
     }
 
-    /** Left edge of tableau column [c]. */
-    fun columnX(c: Int): Float = slotX(leftSlots + c)
+    /** Left edge of tableau column [c] in the right-handed layout. */
+    private fun naturalColumnX(c: Int): Float = slotX(leftSlots + c)
 
-    /** Left edge of the k-th slot of the left side area (landscape), or of the top row (portrait). */
-    private fun leftX(k: Int): Float = if (sideways) slotX(k) else columnX(k)
+    /** Left edge of tableau column [c]. Left-handed, the block of columns is mirrored but keeps its order. */
+    fun columnX(c: Int): Float =
+        if (!leftHanded) naturalColumnX(c) else mirrorX(naturalColumnX(columns - 1)) + c * (cardWidth + gap)
+
+    /** Left-handed: where a card whose right-handed left edge is [x] goes. */
+    private fun mirrorX(x: Float): Float = if (leftHanded) width - x - cardWidth else x
+
+    /**
+     * Left edge of the [i]-th (0 or 1) of two neighbouring slots at right-handed left edges [x0] and [x1].
+     * Left-handed the pair is mirrored, but slot 0 stays on the left.
+     */
+    private fun pairX(x0: Float, x1: Float, i: Int): Float =
+        if (!leftHanded) (if (i == 0) x0 else x1) else mirrorX(if (i == 0) x1 else x0)
+
+    /** Left edge of the k-th slot of the left side area (landscape), or of the top row (portrait), right-handed. */
+    private fun leftX(k: Int): Float = if (sideways) slotX(k) else naturalColumnX(k)
 
     val stockRect: Rect
-        get() = Rect(Offset(if (sideways) slotX(slotsAcross - 1) else columnX(columns - 1), topY), cardSize)
+        get() = Rect(Offset(mirrorX(if (sideways) slotX(slotsAcross - 1) else naturalColumnX(columns - 1)), topY), cardSize)
 
     /** Foundation slot for suit [suit] (C, D, H, S). Not Spider. */
-    fun foundationRect(suit: Int): Rect = when {
-        game == GameType.FREECELL && sideways ->
-            Rect(Offset(slotX(leftSlots + columns + suit % 2), topY + (suit / 2) * (cardHeight + gap)), cardSize)
-        game == GameType.FREECELL -> Rect(Offset(columnX(columns - 4 + suit), topY), cardSize)
-        sideways -> Rect(Offset(leftX(suit % 2), topY + (suit / 2) * (cardHeight + gap)), cardSize)
-        else -> Rect(Offset(columnX(suit), topY), cardSize)
+    fun foundationRect(suit: Int): Rect {
+        val y = if (sideways) topY + (suit / 2) * (cardHeight + gap) else topY
+        val x = when {
+            game == GameType.FREECELL && sideways ->
+                pairX(slotX(leftSlots + columns), slotX(leftSlots + columns + 1), suit % 2)
+            sideways -> pairX(leftX(0), leftX(1), suit % 2)
+            // The four foundations sit together; left-handed they move to the other end of the row.
+            else -> {
+                val first = if (game == GameType.FREECELL) columns - 4 else 0
+                columnX((if (leftHanded) columns - 4 - first else first) + suit)
+            }
+        }
+        return Rect(Offset(x, y), cardSize)
     }
 
     /** FreeCell: free cell [k]. */
     fun cellRect(k: Int): Rect =
-        if (sideways) Rect(Offset(leftX(k % 2), topY + (k / 2) * (cardHeight + gap)), cardSize)
-        else Rect(Offset(columnX(k), topY), cardSize)
+        if (sideways) Rect(Offset(pairX(leftX(0), leftX(1), k % 2), topY + (k / 2) * (cardHeight + gap)), cardSize)
+        else Rect(Offset(columnX(if (leftHanded) columns - 4 + k else k), topY), cardSize)
 
     private val wasteFan: Float = cardWidth * 0.32f
     private val wasteFanDown: Float = cardHeight * 0.28f
@@ -110,7 +135,9 @@ class BoardLayout(
     /**
      * Positions of the visible waste cards, bottom to top (up to three for draw-3, one for draw-1), leaving
      * out the top [hideCount] cards. The top card is always next to the stock; in portrait older cards fan
-     * out to the left, in landscape they sit above it in a short downward fan under the stock.
+     * out to the left, in landscape they sit above it in a short downward fan under the stock. Left-handed
+     * (portrait) the older cards still fan to the left, so their ranks show, and the top card sits a fan's
+     * width away from the stock.
      */
     fun wastePositions(hideCount: Int = 0): List<Pair<Int, Offset>> {
         val visible = if (ruleSet.drawCount >= 3) 3 else 1
@@ -120,6 +147,8 @@ class BoardLayout(
         return (0 until n).map { k ->
             val pos = if (sideways) {
                 Offset(stockRect.left, stockRect.bottom + gap + k * wasteFanDown)
+            } else if (leftHanded) {
+                Offset(columnX(1) + (visible - 1) * wasteFan - (n - 1 - k) * wasteFan, topY)
             } else {
                 Offset(columnX(columns - 2) - (n - 1 - k) * wasteFan, topY)
             }
@@ -148,7 +177,7 @@ class BoardLayout(
         return (0 until deals).map { k ->
             val step = deals - 1 - k
             if (sideways) Offset(stockRect.left, topY + step * stockFanDown)
-            else Offset(stockRect.left - step * stockFan, topY)
+            else Offset(stockRect.left + (if (leftHanded) step else -step) * stockFan, topY)
         }
     }
 
@@ -158,15 +187,17 @@ class BoardLayout(
             !ruleSet.hasStock -> Rect.Zero
             game != GameType.SPIDER -> stockRect
             sideways -> Rect(stockRect.left, topY, stockRect.right, stockRect.bottom + 4 * stockFanDown)
+            leftHanded -> Rect(stockRect.left, topY, stockRect.right + 4 * stockFan, stockRect.bottom)
             else -> Rect(stockRect.left - 4 * stockFan, topY, stockRect.right, stockRect.bottom)
         }
 
     private val runFan: Float = cardWidth * 0.45f
     private val runFanDown: Float = minOf(cardHeight * 0.25f, (height - topY - cardHeight - gap) / 7f)
 
-    /** Spider: where the k-th completed run (shown as its King) goes. */
+    /** Spider: where the k-th completed run (shown as its King) goes. Left-handed they fan from the right. */
     fun completedRunOffset(k: Int): Offset =
-        if (sideways) Offset(leftX(0), topY + k * runFanDown) else Offset(columnX(0) + k * runFan, topY)
+        if (sideways) Offset(mirrorX(leftX(0)), topY + k * runFanDown)
+        else Offset(mirrorX(naturalColumnX(0) + k * runFan), topY)
 
     // ---- columns
 

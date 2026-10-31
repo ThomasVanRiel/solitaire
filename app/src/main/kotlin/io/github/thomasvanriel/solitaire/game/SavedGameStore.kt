@@ -83,4 +83,9 @@ class SavedGameStore(private val context: Context) {
     var lastTier: Tier
         get() = runCatching { Tier.byId(prefs.getInt("lastTier", Tier.MEDIUM.id)) }.getOrDefault(Tier.MEDIUM)
         set(v) = prefs.edit().putInt("lastTier", v.id).apply()
+
+    /** The board is mirrored: stock at the left. */
+    var leftHanded: Boolean
+        get() = prefs.getBoolean("leftHanded", false)
+        set(v) = prefs.edit().putBoolean("leftHanded", v).apply()
 }

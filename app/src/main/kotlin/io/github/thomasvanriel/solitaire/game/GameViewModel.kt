@@ -149,7 +149,33 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     val lastRuleSet: RuleSet get() = store.lastRuleSet
     val lastTier: Tier get() = store.lastTier
 
+    private val _leftHanded = MutableStateFlow(false)
+
+    /** The board is mirrored, with the stock at the left. */
+    val leftHanded: StateFlow<Boolean> = _leftHanded.asStateFlow()
+
+    fun setLeftHanded(on: Boolean) {
+        _leftHanded.value = on
+        store.leftHanded = on
+    }
+
+    /**
+     * The last tap, while its move is still the latest: [before] is the game before it, [candidates] the
+     * places tried in order, [index] the one played, and [landed] where the tapped card is now.
+     */
+    private class TapCycle(
+        val before: Game,
+        val after: Game,
+        val source: Source,
+        val candidates: List<Move>,
+        val index: Int,
+        val landed: Source,
+    )
+
+    private var tapCycle: TapCycle? = null
+
     init {
+        viewModelScope.launch { _leftHanded.value = withContext(Dispatchers.IO) { store.leftHanded } }
         viewModelScope.launch { restoreOrStart() }
         viewModelScope.launch { watchForStuck() }
         viewModelScope.launch {
@@ -433,16 +459,58 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Sends the tapped card (or run) to the best place: see [candidateMoves] and [runGameCandidates]. */
+    /**
+     * Sends the tapped card (or run) to the best place: see [candidateMoves] and [runGameCandidates]. Tapping
+     * the card again straight away sends it on to the next place instead, as the same move.
+     */
     fun tap(source: Source) {
         val game = _state.value.game ?: return
-        for (move in candidateMoves(game.state, source)) {
-            if (game.isLegal(move)) {
-                play(move)
-                return
-            }
+        val cycle = tapCycle
+        if (cycle != null && cycle.after === game && cycle.landed == source) {
+            tapAgain(cycle)
+            return
         }
-        countFailedMove()
+        val candidates = candidateMoves(game.state, source)
+        val index = candidates.indexOfFirst { game.isLegal(it) }
+        if (index < 0) {
+            countFailedMove()
+            return
+        }
+        if (play(candidates[index])) rememberTap(game, source, candidates, index)
+    }
+
+    /** Takes the last tap back and plays the next place it can go, going round; nothing if it has no other. */
+    private fun tapAgain(cycle: TapCycle) {
+        val s = _state.value
+        if (s.busy || s.won) return
+        val n = cycle.candidates.size
+        val next = (1 until n).map { (cycle.index + it) % n }.firstOrNull { cycle.before.isLegal(cycle.candidates[it]) }
+            ?: return
+        _state.value = s.copy(game = takeOffCompleteRuns(cycle.before.play(cycle.candidates[next])))
+        rememberTap(cycle.before, cycle.source, cycle.candidates, next)
+        afterMove()
+        save()
+        maybeFinish()
+    }
+
+    /** Remembers a tap that moved a card, so tapping the card again can send it on (not after a foundation). */
+    private fun rememberTap(before: Game, source: Source, candidates: List<Move>, index: Int) {
+        val after = _state.value.game
+        val landed = if (after != null && after.moves.size == before.moves.size + 1) {
+            landedAt(before.state, after.state, candidates[index])
+        } else {
+            null
+        }
+        tapCycle = if (after != null && landed != null) TapCycle(before, after, source, candidates, index, landed) else null
+    }
+
+    /** Where the first card moved by [move] is afterwards, if it can be tapped there. */
+    private fun landedAt(before: GameState, after: GameState, move: Move): Source? = when (move) {
+        is Move.TableauToTableau -> Source.Column(move.to, after.tabSize[move.to] - move.count)
+        is Move.WasteToTableau -> Source.Column(move.col, after.tabSize[move.col] - 1)
+        is Move.CellToTableau -> Source.Column(move.col, after.tabSize[move.col] - 1)
+        is Move.TableauToCell -> Source.Cell(before.firstFreeCell())
+        else -> null
     }
 
     fun drop(source: Source, target: Target): Boolean {

@@ -49,6 +49,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -100,6 +101,7 @@ private fun dimmed(c: Color, dim: Float): Color = Color(c.red * (1 - dim), c.gre
 @Composable
 fun GameScreen(vm: GameViewModel, dark: Boolean) {
     val ui by vm.state.collectAsStateWithLifecycle()
+    val leftHanded by vm.leftHanded.collectAsStateWithLifecycle()
     var showNewGame by rememberSaveable { mutableStateOf(false) }
     var showRestart by rememberSaveable { mutableStateOf(false) }
     var showShare by rememberSaveable { mutableStateOf(false) }
@@ -163,6 +165,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                         // Unhurried, so the cards glide; a little quicker while the game plays moves
                         // itself (auto-finish, debug autoplay).
                         animationMillis = if (ui.busy) 170 else 300,
+                        leftHanded = leftHanded,
                         modifier = Modifier.fillMaxSize().padding(top = 4.dp),
                         hint = ui.hint,
                     )
@@ -220,6 +223,8 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
             greeting = greeting,
             initialRuleSet = vm.lastRuleSet,
             initialTier = vm.lastTier,
+            leftHanded = leftHanded,
+            onLeftHanded = vm::setLeftHanded,
             onPlayCode = { rs, seed ->
                 showNewGame = false
                 vm.playDeal(rs, seed)
@@ -379,6 +384,8 @@ private fun NewGameDialog(
     greeting: String,
     initialRuleSet: RuleSet,
     initialTier: Tier,
+    leftHanded: Boolean,
+    onLeftHanded: (Boolean) -> Unit,
     onPlayCode: (RuleSet, Long) -> Unit,
     onStart: (RuleSet, Tier) -> Unit,
     onDismiss: () -> Unit,
@@ -433,6 +440,10 @@ private fun NewGameDialog(
                     keyboardActions = KeyboardActions(onGo = { parsed?.let { onPlayCode(it.first, it.second) } }),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Stock on the left (left-handed)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Switch(checked = leftHanded, onCheckedChange = onLeftHanded)
+                }
             }
         },
         confirmButton = {
