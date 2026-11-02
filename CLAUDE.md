@@ -71,7 +71,7 @@ If you're tempted to weaken this to make something faster or simpler, don't.
 
 ## README screenshots
 Retake them with `tools/screenshot.sh` after visible UI changes, and copy them to `docs/screenshots/`.
-No easter eggs in them (no scorecards, pop-ups or felt surprise; the deals below have none). Fortune lines
+No easter eggs in them (no scorecards or pop-ups; the deals below have none). Fortune lines
 and greetings are normal features and may show.
 - `klondike.png`: K1-6 at move 70. `spider.png`: S2-1 at 140. `scorpion.png`: SC-6 at 24.
 - `win.png`: K1-6 played to the win (`-1`).

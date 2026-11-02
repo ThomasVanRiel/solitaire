@@ -50,7 +50,6 @@ fun Board(
     onTap: (Source) -> Unit,
     onDrop: (Source, Target) -> Boolean,
     legalTargets: (Source) -> List<Target>,
-    seed: Long,
     animationMillis: Int,
     leftHanded: Boolean,
     modifier: Modifier = Modifier,
@@ -157,7 +156,6 @@ fun Board(
             val hidden: Source? = d?.source
             val gone = anim?.hidden
             val t = if (pending) 0f else progress // read while drawing, so a frame only redraws
-            drawFeltSurprise(seed, l)
             with(painter) {
                 // Stock (Spider shows one card per deal left)
                 val klondike = ruleSet.game == GameType.KLONDIKE

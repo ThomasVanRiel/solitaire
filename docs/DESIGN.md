@@ -303,7 +303,6 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   blue back, a faint shadow under each card, and a warm wood-and-cream Material colour scheme instead of
   the bright defaults. The win screen, notices, the stuck banner and achievement pop-ups fade in and out
   over `SOFT_FADE_MS` (600 ms) rather than popping.
-- `ui/FeltSurprise`: a faint swirl on the felt on about 1 deal in 25, chosen by a hash of the deal number.
 - The fun bits (`extras/`, pure Kotlin, tested by `:extras:test`): `Fortunes` (win line), `Greetings`
   (New game), `Quips` (stuck banner, leaving a game unwon, Restart), `Achievements` and `Scorecards`.
   Notable moments (first wins, milestones, streaks, holidays) always get their line; otherwise a line about the

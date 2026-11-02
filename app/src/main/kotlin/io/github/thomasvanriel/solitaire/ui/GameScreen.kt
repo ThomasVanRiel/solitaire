@@ -165,7 +165,6 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
                         onTap = vm::tap,
                         onDrop = { source, target -> vm.drop(source, target) },
                         legalTargets = vm::legalTargets,
-                        seed = ui.seed,
                         // Unhurried, so the cards glide; a little quicker while the game plays moves
                         // itself (auto-finish, debug autoplay).
                         animationMillis = if (ui.busy) 170 else 300,
