@@ -17,8 +17,8 @@ android {
         applicationId = "io.github.thomasvanriel.solitaire"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.1.0"
+        versionCode = 13
+        versionName = "1.2.2"
     }
 
     signingConfigs {
