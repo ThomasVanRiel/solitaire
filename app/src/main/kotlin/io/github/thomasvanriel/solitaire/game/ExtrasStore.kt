@@ -52,6 +52,7 @@ class ExtrasStore(private val context: Context) {
             else -> 1
         }
         prefs.edit()
+            .apply { if (last != day) putInt("daysAway", if (last == null) 0 else (day - last - 1).toInt()) }
             .putLong("lastPlayedDay", day)
             .putInt("dayStreak", streak)
             .putInt("daysPlayed", if (last == day) daysPlayed else daysPlayed + 1)
@@ -59,9 +60,37 @@ class ExtrasStore(private val context: Context) {
             .apply()
     }
 
-    fun recordWin(rs: RuleSet, now: LocalDateTime) {
+    /** Days without a game before today's first one (0 if none today, or none before it). */
+    fun daysAway(today: LocalDate): Int =
+        if (prefs.getLong("lastPlayedDay", Long.MIN_VALUE) == today.toEpochDay()) prefs.getInt("daysAway", 0) else 0
+
+    /** Whether deal [seed] of [rs] was won before (kept since version 1.2.2). */
+    fun dealWon(rs: RuleSet, seed: Long): Boolean = dealKey(rs, seed) in wonDeals
+
+    private val wonDeals: Set<String> get() = prefs.getStringSet("wonDeals", emptySet()).orEmpty()
+
+    private fun dealKey(rs: RuleSet, seed: Long) = "${rs.id}:$seed"
+
+    private fun isToday(today: LocalDate) = prefs.getLong("winDay", Long.MIN_VALUE) == today.toEpochDay()
+
+    fun winsToday(today: LocalDate): Int = if (isToday(today)) prefs.getInt("winsToday", 0) else 0
+
+    /** Game types won today, by name. */
+    private fun typesWonToday(today: LocalDate): Set<String> =
+        if (isToday(today)) prefs.getStringSet("typesWonToday", emptySet()).orEmpty() else emptySet()
+
+    fun gameTypesWonToday(today: LocalDate): Int = typesWonToday(today).size
+
+    fun recordWin(rs: RuleSet, seed: Long, now: LocalDateTime) {
+        val today = now.toLocalDate()
+        val winsToday = winsToday(today) + 1
+        val types = typesWonToday(today) + rs.game.name
         prefs.edit().apply {
             if (Achievements.isWeekend(now.dayOfWeek)) putInt("weekendWins", weekendWins + 1)
+            putStringSet("wonDeals", wonDeals + dealKey(rs, seed))
+            putLong("winDay", today.toEpochDay())
+            putInt("winsToday", winsToday)
+            putStringSet("typesWonToday", types)
             putInt("abandonedInARow", 0)
             remove(lostStreakKey(rs))
         }.apply()

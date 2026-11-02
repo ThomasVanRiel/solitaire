@@ -3,6 +3,7 @@ package io.github.thomasvanriel.solitaire.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -72,6 +73,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -106,6 +108,8 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
     var showRestart by rememberSaveable { mutableStateOf(false) }
     var showShare by rememberSaveable { mutableStateOf(false) }
     var showStats by rememberSaveable { mutableStateOf(false) }
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    LaunchedEffect(dark, landscape) { vm.setDisplay(dark, landscape) }
 
     if (showStats) {
         val stats by vm.stats.collectAsStateWithLifecycle()
@@ -200,7 +204,7 @@ fun GameScreen(vm: GameViewModel, dark: Boolean) {
         AchievementPopup(popups.firstOrNull(), onShown = vm::achievementShown, modifier = Modifier.align(Alignment.TopCenter))
     }
 
-    if (showShare) ShareDialog(ui, onDismiss = { showShare = false })
+    if (showShare) ShareDialog(ui, onShared = vm::dealShared, onDismiss = { showShare = false })
 
     if (showRestart) {
         AlertDialog(
@@ -454,7 +458,7 @@ private fun NewGameDialog(
 
 /** Shows the current deal's code, to copy or send with the system share sheet. */
 @Composable
-private fun ShareDialog(ui: GameUiState, onDismiss: () -> Unit) {
+private fun ShareDialog(ui: GameUiState, onShared: () -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val code = DealCode.format(ui.ruleSet, ui.seed)
     val message = "Can you win Solitaire deal $code (${ui.ruleSet.label}, ${ui.tier.label})? " +
@@ -478,6 +482,7 @@ private fun ShareDialog(ui: GameUiState, onDismiss: () -> Unit) {
             Button(onClick = {
                 val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, message)
                 context.startActivity(Intent.createChooser(send, "Share deal $code"))
+                onShared()
                 onDismiss()
             }) { Text("Share") }
         },
@@ -485,6 +490,7 @@ private fun ShareDialog(ui: GameUiState, onDismiss: () -> Unit) {
             TextButton(onClick = {
                 context.getSystemService(ClipboardManager::class.java)
                     ?.setPrimaryClip(ClipData.newPlainText("Deal code", code))
+                onShared()
                 onDismiss()
             }) { Text("Copy code") }
         },

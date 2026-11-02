@@ -15,6 +15,28 @@ data class AchievementFacts(
     /** Days in a row with at least one game played, up to today. */
     val dayStreak: Int,
     val win: WinFacts? = null,
+    /** How the board looked during [win]. */
+    val leftHanded: Boolean = false,
+    val darkMode: Boolean = false,
+    val landscape: Boolean = false,
+    /** The judges' scorecards came up for [win]. */
+    val scorecards: Boolean = false,
+    /** The player [win] is for had won this same deal before. */
+    val dealWonBefore: Boolean = false,
+    /** Games left unwon in a row just before [win]. */
+    val abandonedBefore: Int = 0,
+    /** Days without a game before today's first one (0 if played yesterday, or never before). */
+    val daysAway: Int = 0,
+    /** Wins today, and how many game types they cover. */
+    val winsToday: Int = 0,
+    val gameTypesWonToday: Int = 0,
+    /** Undos in the game on the table. */
+    val undosThisGame: Int = 0,
+    /** Just now: the player shared a deal's code, or started a deal from a code. */
+    val sharedDeal: Boolean = false,
+    val playedCode: Boolean = false,
+    /** Achievements already unlocked (set by [Achievements.newlyEarned]). */
+    val unlockedCount: Int = 0,
 ) {
     val totalWins: Int get() = wins.values.sumOf { it.values.sum() }
     fun winsIn(rs: RuleSet): Int = wins[rs]?.values?.sum() ?: 0
@@ -113,13 +135,55 @@ object Achievements {
         w("pi_day", "Easy as Pi", "Win on 14 March.") { it.now.monthValue == 3 && it.now.dayOfMonth == 14 },
         w("leap_day", "Leap of Faith", "Win on 29 February.") { it.now.monthValue == 2 && it.now.dayOfMonth == 29 },
         w("christmas", "Deck the Halls", "Win between 24 and 26 December.") { it.now.monthValue == 12 && it.now.dayOfMonth in 24..26 },
+        w("hat_trick", "Hat Trick", "Win 3 in a row.") { it.streak >= 3 },
+        w("backseat", "Backseat Driver", "Win a game with 10 or more hints. Who's playing, exactly?") { it.hints >= 10 },
+        w("scenic", "The Scenic Route", "Win in more than twice the moves of the stored solution.") {
+            it.solutionMoves > 0 && it.moves > 2 * it.solutionMoves
+        },
+        w("on_the_dot", "Right on Time", "Win in exactly 5:00.") { it.seconds == 300L },
+        w("dont_panic", "Don't Panic", "Win deal #42 of any game.") { it.seed == 42L },
+        w("last_orders", "Last Orders", "Win between 23:00 and midnight.") { it.now.hour == 23 },
+        w("tea_time", "Tea Time", "Win between 16:00 and 17:00.") { it.now.hour == 16 },
+        w("monday", "Case of the Mondays", "Win before 9 a.m. on a Monday.") {
+            it.now.dayOfWeek == DayOfWeek.MONDAY && it.now.hour < 9
+        },
+        w("april_fools", "No, Really", "Win on 1 April.") { it.now.monthValue == 4 && it.now.dayOfMonth == 1 },
+        w("friday13_deal13", "Unlucky for Some, Again", "Win deal #13 on Friday the 13th.") {
+            it.seed == 13L && it.now.dayOfMonth == 13 && it.now.dayOfWeek == DayOfWeek.FRIDAY
+        },
+        a("southpaw", "Southpaw", "Win a game with the left-handed layout.") { it.win != null && it.leftHanded },
+        a("lights_out", "Lights Out", "Win a game in dark mode.") { it.win != null && it.darkMode },
+        a("widescreen", "Widescreen", "Win a game in landscape.") { it.win != null && it.landscape },
+        a("perfect_ten", "Perfect Ten", "Get a score from the judges.") { it.win != null && it.scorecards },
+        a("share", "Spread the Word", "Share a deal.") { it.sharedDeal },
+        a("code", "Code Breaker", "Play a deal from its code.") { it.playedCode },
+        a("deja_vu", "Déjà Vu", "Win the same deal twice.") { it.win != null && it.dealWonBefore },
+        a("binge", "Binge", "Win 10 games in one day.") { it.winsToday >= 10 },
+        a("variety", "Variety Show", "Win 3 different games in one day.") { it.gameTypesWonToday >= 3 },
+        a("brink", "Back From the Brink", "Win after leaving 10 games unfinished in a row.") {
+            it.win != null && it.abandonedBefore >= 10
+        },
+        a("prodigal", "Prodigal Return", "Win on your first day back after a month away.") { it.win != null && it.daysAway >= 30 },
+        a("ctrl_z", "Ctrl+Z", "Undo 100 times in one game.") { it.undosThisGame >= 100 },
+        // These two count the others, so they stay last.
+        a("achievements_25", "Achievement Unlocked", "Unlock 25 achievements, this one included.") { it.unlockedCount >= 24 },
+        a("completionist", "Completionist", "Unlock every other achievement. Then go outside. Really.") {
+            it.unlockedCount >= ALL.size - 1
+        },
     )
 
     fun byId(id: String): Achievement? = ALL.firstOrNull { it.id == id }
 
-    /** Achievements earned by [facts] that aren't in [unlocked] yet, in list order. */
-    fun newlyEarned(facts: AchievementFacts, unlocked: Set<String>): List<Achievement> =
-        ALL.filter { it.id !in unlocked && it.earned(facts) }
+    /**
+     * Achievements earned by [facts] that aren't in [unlocked] yet, in list order. Ones earned earlier in the
+     * list count towards the ones that count achievements.
+     */
+    fun newlyEarned(facts: AchievementFacts, unlocked: Set<String>): List<Achievement> {
+        val got = ALL.filter { it.id in unlocked }.mapTo(HashSet()) { it.id }
+        return ALL.filter { a ->
+            (a.id !in got && a.earned(facts.copy(unlockedCount = got.size))).also { if (it) got += a.id }
+        }
+    }
 
     fun isWeekend(day: DayOfWeek): Boolean = day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY
 }

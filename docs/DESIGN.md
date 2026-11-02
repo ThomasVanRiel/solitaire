@@ -311,8 +311,12 @@ Tier cut-offs (`Difficulty.tierFor`), calibrated from the distribution over winn
   its kind. Greetings go: first game, holiday, a long absence, then sometimes a line for coming back, an
   unfinished game, a streak or the day of the week, else one for the time of day; the pick is the same
   within an hour. `ExtrasStore` ("extras" preferences) keeps unlocked achievement ids, the counters the stats
-  don't have (weekend wins, days played in a row, games left unwon in a row, the streak a loss ended) and
-  the last line of each kind. Achievements are checked after a win, a hint and a game's first move; new ones
+  don't have (weekend wins, days played in a row, days away before today, games left unwon in a row, the
+  streak a loss ended, wins and game types won today, the deals won since 1.2.2) and
+  the last line of each kind. Achievements are checked after a win, a hint, a game's first move, sharing a deal, starting one
+  from its code and the 100th undo in a game; the view model adds what only the app knows (left-handed layout,
+  dark mode, landscape, scorecards shown). *Achievement Unlocked* and *Completionist* count the others, ones
+  earned in the same check included; new ones
   queue as pop-ups with no touch handling, so taps go through. Reset statistics also clears them.
   Restarts per deal are saved with the game.
 - Debug-only tools live in `app/src/debug/.../DebugTools.kt` (StrictMode, autoplay, screenshot mode,

@@ -159,7 +159,7 @@ class ExtrasTest {
     @Test
     fun `achievement ids are unique and every one can be earned`() {
         assertEquals(Achievements.ALL.size, Achievements.ALL.map { it.id }.toSet().size)
-        assertEquals(55, Achievements.ALL.size)
+        assertEquals(79, Achievements.ALL.size)
     }
 
     @Test
@@ -187,6 +187,59 @@ class ExtrasTest {
         val million = AchievementFacts(mapOf(RuleSet.FREECELL to mapOf(Tier.EASY to 10_000)), 0, 0, 0, 1)
         assertTrue("wins_10000" in Achievements.newlyEarned(million, emptySet()).map { it.id })
         assertTrue("wins_10000" !in Achievements.newlyEarned(million.copy(wins = mapOf(RuleSet.FREECELL to mapOf(Tier.EASY to 9_999))), emptySet()).map { it.id })
+    }
+
+    @Test
+    fun `funny ones`() {
+        fun earned(w: WinFacts, f: AchievementFacts.() -> AchievementFacts = { this }) = Achievements.newlyEarned(
+            AchievementFacts(mapOf(w.ruleSet to mapOf(w.tier to 1)), 0, 0, 0, 1, win = w).f(), setOf("first_win", "undo_win"),
+        ).map { it.id }
+        val plain = earned(win())
+        assertTrue(plain.isEmpty(), "$plain")
+        assertTrue("hat_trick" in earned(win(streak = 3)))
+        assertTrue("backseat" in earned(win().copy(hints = 10)))
+        assertTrue("scenic" in earned(win(moves = 241, solutionMoves = 120)))
+        assertTrue("scenic" !in earned(win(moves = 240, solutionMoves = 120)))
+        assertTrue("on_the_dot" in earned(win(seconds = 300)))
+        assertTrue("dont_panic" in earned(win(seed = 42)))
+        assertTrue("last_orders" in earned(win(now = wednesday.withHour(23))))
+        assertTrue("tea_time" in earned(win(now = wednesday.withHour(16))))
+        assertTrue("monday" in earned(win(now = LocalDateTime.of(2026, 10, 19, 8, 59))))
+        assertTrue("monday" !in earned(win(now = LocalDateTime.of(2026, 10, 19, 9, 0))))
+        assertTrue("april_fools" in earned(win(now = LocalDateTime.of(2027, 4, 1, 15, 0))))
+        val friday13 = LocalDateTime.of(2026, 11, 13, 15, 0)
+        assertTrue("friday13_deal13" in earned(win(seed = 13, now = friday13)))
+        assertTrue("friday13_deal13" !in earned(win(seed = 14, now = friday13)))
+        assertEquals(
+            listOf("southpaw", "lights_out", "widescreen", "perfect_ten", "deja_vu", "brink", "prodigal"),
+            earned(win()) {
+                copy(
+                    leftHanded = true, darkMode = true, landscape = true, scorecards = true, dealWonBefore = true,
+                    abandonedBefore = 10, daysAway = 30,
+                )
+            },
+        )
+        // Settings and flags about a win need a win.
+        val noWin = AchievementFacts(emptyMap(), 0, 0, 0, 1, leftHanded = true, darkMode = true, abandonedBefore = 20, daysAway = 40)
+        assertTrue(Achievements.newlyEarned(noWin, emptySet()).isEmpty())
+        val now = Achievements.newlyEarned(
+            noWin.copy(sharedDeal = true, playedCode = true, winsToday = 10, gameTypesWonToday = 3, undosThisGame = 100),
+            emptySet(),
+        ).map { it.id }
+        assertEquals(listOf("share", "code", "binge", "variety", "ctrl_z"), now)
+    }
+
+    @Test
+    fun `the counting achievements count the ones earned with them`() {
+        val others = Achievements.ALL.map { it.id } - setOf("achievements_25", "completionist")
+        val none = AchievementFacts(emptyMap(), 0, 0, 0, 1)
+        assertTrue(Achievements.newlyEarned(none, others.take(23).toSet()).isEmpty())
+        // The 24th comes with the share, and the 25th is this one.
+        val shared = Achievements.newlyEarned(none.copy(sharedDeal = true), (others.take(24) - "share").toSet()).map { it.id }
+        assertEquals(listOf("share", "achievements_25"), shared)
+        assertEquals(listOf("completionist"), Achievements.newlyEarned(none, others.toSet() + "achievements_25").map { it.id })
+        // Unknown ids (say, from a later version) don't count.
+        assertTrue(Achievements.newlyEarned(none, others.take(23).toSet() + "gone").isEmpty())
     }
 
     @Test

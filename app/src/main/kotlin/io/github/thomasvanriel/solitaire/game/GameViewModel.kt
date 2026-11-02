@@ -154,6 +154,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** The board is mirrored, with the stock at the left. */
     val leftHanded: StateFlow<Boolean> = _leftHanded.asStateFlow()
 
+    private var darkMode = false
+    private var landscape = false
+
+    /** How the screen looks now, for the achievements. */
+    fun setDisplay(dark: Boolean, landscape: Boolean) {
+        darkMode = dark
+        this.landscape = landscape
+    }
+
     fun setLeftHanded(on: Boolean) {
         _leftHanded.value = on
         store.leftHanded = on
@@ -302,6 +311,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             store.lastRuleSet = ruleSet
             store.lastTier = deal.tier
             start(deal)
+            checkAchievements(null) { copy(playedCode = true) }
             quip?.let { showNotice(it, QUIP_MILLIS) }
         }
     }
@@ -356,9 +366,18 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         _popups.update { it - a }
     }
 
-    /** Unlocks the achievements earned so far (after a win, if [win] is set) and pops them up. */
-    private fun checkAchievements(win: WinFacts?) {
+    /** The player shared the current deal's code (or copied it). */
+    fun dealShared() {
+        checkAchievements(null) { copy(sharedDeal = true) }
+    }
+
+    /**
+     * Unlocks the achievements earned so far (after a win, if [win] is set) and pops them up. [more] adds what
+     * only the caller knows.
+     */
+    private fun checkAchievements(win: WinFacts?, more: AchievementFacts.() -> AchievementFacts = { this }) {
         val all = statsStore.loadAll()
+        val today = LocalDate.now()
         val facts = AchievementFacts(
             wins = all.mapValues { (_, mode) -> mode.tiers.mapValues { it.value.won } },
             winsWithoutHints = all.values.sumOf { it.wonWithoutHints },
@@ -366,7 +385,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             weekendWins = extras.weekendWins,
             dayStreak = extras.dayStreak,
             win = win,
-        )
+            leftHanded = _leftHanded.value,
+            darkMode = darkMode,
+            landscape = landscape,
+            daysAway = extras.daysAway(today),
+            winsToday = extras.winsToday(today),
+            gameTypesWonToday = extras.gameTypesWonToday(today),
+            undosThisGame = _state.value.undos,
+        ).more()
         val earned = Achievements.newlyEarned(facts, _unlocked.value)
         if (earned.isEmpty()) return
         extras.unlock(earned.map { it.id })
@@ -431,6 +457,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (!s.assisted) statsStore.recordUndo(s.ruleSet, s.tier)
         _state.value = s.copy(game = g, usedUndo = true, undos = s.undos + 1)
         save()
+        if (!s.assisted && s.undos + 1 >= 100 && "ctrl_z" !in _unlocked.value) checkAchievements(null)
     }
 
     fun tapStock() {
@@ -755,6 +782,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             next = next.copy(counted = true)
         }
         var win: WinFacts? = null
+        var dealWonBefore = false
+        var abandonedBefore = 0
         if (s.won && !s.winRecorded) {
             val before = statsStore.loadAll()
             val record = statsStore.recordWin(
@@ -762,7 +791,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             )
             val now = LocalDateTime.now()
             val lostStreak = extras.lostStreak(s.ruleSet)
-            extras.recordWin(s.ruleSet, now)
+            dealWonBefore = extras.dealWon(s.ruleSet, s.seed)
+            abandonedBefore = extras.abandonedInARow
+            extras.recordWin(s.ruleSet, s.seed, now)
             val mode = before.getValue(s.ruleSet)
             val winsBefore = before.values.sumOf { it.won }
             win = WinFacts(
@@ -789,7 +820,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             _state.value = next
             refreshStats()
         }
-        if (newDay || win != null) checkAchievements(win)
+        if (newDay || win != null) {
+            val scorecards = next.scorecards != null
+            checkAchievements(win) {
+                copy(dealWonBefore = dealWonBefore, abandonedBefore = abandonedBefore, scorecards = scorecards)
+            }
+        }
     }
 
     private fun save() {
